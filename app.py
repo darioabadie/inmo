@@ -35,6 +35,9 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 import os
 import pickle
+import logging
+import warnings
+from urllib3.exceptions import InsecureRequestWarning
 
 
 # ---------- Parámetros de configuración ----------
@@ -51,6 +54,14 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 CLIENT_SECRET_FILE = "client_secret_126046018868-po1ak4e296153vhr6rfn16lh20hdvbg2.apps.googleusercontent.com.json"
 TOKEN_PICKLE = "token.pickle"
 # -----------------------------------------
+
+# Ignorar solo los warnings de requests por verify=False
+warnings.filterwarnings("ignore", category=InsecureRequestWarning)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s: %(message)s"
+)
 
 
 def _parse_args() -> argparse.Namespace:
@@ -85,12 +96,29 @@ def inflacion_acumulada(df_infl: pd.DataFrame, hasta: dt.date, meses: int) -> fl
     return factores.prod()
 
 
+# ---------- ICL ----------
+def traer_factor_icl(fecha_inicio: dt.date, fecha_hasta: dt.date) -> float:
+    """Obtiene el factor de actualización ICL desde la API del BCRA."""
+    url = (
+        f"https://api.bcra.gob.ar/estadisticas/v3.0/monetarias/40?desde={fecha_inicio.strftime('%Y-%m-%d')}&hasta={fecha_hasta.strftime('%Y-%m-%d')}"
+    )
+    res = requests.get(url, timeout=10, verify=False)  # <--- Ignora la verificación SSL
+    res.raise_for_status()
+    data = res.json()["results"]
+    if not data:
+        raise ValueError("No se encontraron datos de ICL para el rango dado.")
+    valor_inicio = data[-1]["valor"]  # El primer valor cronológico es el último del array
+    valor_final = data[0]["valor"]    # El último valor cronológico es el primero del array
+    return float(valor_final) / float(valor_inicio)
+
+
 # ---------- Actualización de precio ----------
 def precio_ajustado(precio_anterior: float,
                     frecuencia: str,
                     indice: str,
                     df_infl: pd.DataFrame,
-                    fecha_ref: dt.date) -> float:
+                    fecha_ref: dt.date,
+                    fecha_inicio: dt.date = None) -> float:
     """Devuelve el precio ajustado según la política de la fila."""
     if frecuencia not in {"trimestral", "semestral", "anual"}:
         return precio_anterior  # no debería ocurrir
@@ -99,6 +127,10 @@ def precio_ajustado(precio_anterior: float,
 
     if indice.upper() == "IPC":
         factor = inflacion_acumulada(df_infl, fecha_ref, meses)
+    elif indice.upper() == "ICL":
+        if fecha_inicio is None:
+            raise ValueError("Se requiere fecha_inicio para calcular ICL")
+        factor = traer_factor_icl(fecha_inicio, fecha_ref)
     else:  # Porcentaje fijo: “10 %”, “7.5%”, etc.
         pct = float(indice.strip().replace("%", "").replace(",", "."))
         factor = 1 + pct / 100
@@ -166,6 +198,19 @@ def main() -> None:
             if aplica_actualizacion == "SI" and ciclos_cumplidos > 0:
                 fecha_corte = inicio + relativedelta(months=ciclos_cumplidos * freq_meses)
                 porc_actual = (inflacion_acumulada(inflacion_df, fecha_corte, freq_meses) - 1) * 100
+            else:
+                porc_actual = 0
+        elif fila["indice"].upper() == "ICL":
+            factor_total = 1.0
+            for ciclo in range(ciclos_cumplidos):
+                fecha_inicio_ciclo = inicio + relativedelta(months=ciclo * freq_meses)
+                fecha_fin_ciclo = fecha_inicio_ciclo + relativedelta(months=freq_meses)
+                factor_ciclo = traer_factor_icl(fecha_inicio_ciclo, fecha_fin_ciclo)
+                factor_total *= factor_ciclo
+            if aplica_actualizacion == "SI" and ciclos_cumplidos > 0:
+                fecha_inicio_ult = inicio + relativedelta(months=(ciclos_cumplidos - 1) * freq_meses)
+                fecha_fin_ult = fecha_inicio_ult + relativedelta(months=freq_meses)
+                porc_actual = (traer_factor_icl(fecha_inicio_ult, fecha_fin_ult) - 1) * 100
             else:
                 porc_actual = 0
         else:
