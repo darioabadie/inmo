@@ -100,7 +100,54 @@ Se crea una hoja nueva en el mismo Google Sheets con las siguientes columnas:
 - `pago_prop` (pago neto al propietario)
 - `actualizacion` ("SI" si corresponde actualización ese mes)
 - `porc_actual` (porcentaje aplicado en la actualización, vacío si no hubo)
+- `meses_prox_actualizacion` (meses hasta la próxima actualización de precio)
 - `meses_prox_renovacion` (meses restantes del contrato)
+
+## Tests
+
+Este proyecto incluye una suite completa de tests unitarios y de integración para garantizar la calidad y correctness de todos los cálculos.
+
+### Ejecutar Tests
+
+1. **Configura el entorno virtual** (primera vez):
+```sh
+python3 -m venv venv
+source venv/bin/activate  # En macOS/Linux
+# o
+venv\Scripts\activate     # En Windows
+pip install -r requirements.txt
+```
+
+2. **Ejecutar todos los tests**:
+```sh
+# Usando el entorno virtual
+./venv/bin/python tests/run_tests.py
+
+# O activando el entorno
+source venv/bin/activate
+python tests/run_tests.py
+```
+
+3. **Ejecutar tests específicos**:
+```sh
+python tests/run_tests.py calculations    # Solo cálculos matemáticos
+python tests/run_tests.py contract       # Solo lógica de contratos  
+python tests/run_tests.py integration    # Solo tests de integración
+```
+
+### Cobertura de Tests
+
+- ✅ **36 tests** cubriendo todas las funciones críticas
+- ✅ **Cálculos matemáticos**: inflación, comisiones, cuotas adicionales
+- ✅ **Lógica de contratos**: ciclos, actualizaciones, vigencia
+- ✅ **Casos extremos**: datos faltantes, contratos vencidos, formatos inválidos
+- ✅ **Integración**: flujo completo extremo a extremo
+
+Los tests garantizan que:
+- Los cálculos financieros sean precisos
+- La lógica de actualización funcione correctamente
+- El manejo de errores sea robusto
+- Los cambios no rompan funcionalidad existente
 
 ## Notas
 
