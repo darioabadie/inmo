@@ -67,6 +67,22 @@ La hoja de Google Sheets debe tener una hoja llamada `administracion` con las si
 - `fecha_inicio_contrato` (YYYY-MM-DD)
 - `duracion_meses`
 - `comision_inmo` (porcentaje, ej: "5%")
+- `comision` ("Pagado", "2 cuotas", "3 cuotas")
+- `deposito` ("Pagado", "2 cuotas", "3 cuotas")
+
+### Funcionalidad de Comisión y Depósito en Cuotas
+
+Las columnas `comision` y `deposito` permiten configurar el pago fraccionado de estos conceptos:
+
+- **"Pagado"**: La comisión/depósito ya fue pagado por separado, no se suma al alquiler mensual
+- **"2 cuotas"**: Se divide el monto (equivalente a 1 mes de alquiler) en 2 partes iguales y se suma a los primeros 2 meses
+- **"3 cuotas"**: Se divide el monto (equivalente a 1 mes de alquiler) en 3 partes iguales y se suma a los primeros 3 meses
+
+**Ejemplo**: Si el alquiler base es $100,000, comisión "2 cuotas" y depósito "3 cuotas":
+- Mes 1: $100,000 + $50,000 (comisión) + $33,333 (depósito) = $183,333
+- Mes 2: $100,000 + $50,000 (comisión) + $33,333 (depósito) = $183,333  
+- Mes 3: $100,000 + $0 (comisión) + $33,334 (depósito) = $133,334
+- Mes 4 en adelante: $100,000
 
 ## Salida
 
@@ -77,9 +93,11 @@ Se crea una hoja nueva en el mismo Google Sheets con las siguientes columnas:
 - `inquilino`
 - `propietario`
 - `mes_actual`
-- `precio_mes_actual`
-- `comision_inmo`
-- `pago_prop`
+- `precio_mes_actual` (precio total que paga el inquilino, incluyendo cuotas)
+- `precio_base` (precio base del alquiler sin cuotas)
+- `cuotas_adicionales` (monto de cuotas de comisión/depósito este mes)
+- `comision_inmo` (comisión de administración al propietario)
+- `pago_prop` (pago neto al propietario)
 - `actualizacion` ("SI" si corresponde actualización ese mes)
 - `porc_actual` (porcentaje aplicado en la actualización, vacío si no hubo)
 - `meses_prox_renovacion` (meses restantes del contrato)
@@ -88,6 +106,9 @@ Se crea una hoja nueva en el mismo Google Sheets con las siguientes columnas:
 
 - Si la hoja de pagos para ese mes ya existe, será sobrescrita.
 - El archivo `token.pickle` guarda tu sesión autorizada y puede ser eliminado si necesitas reautenticarte.
+- **Diferencia entre comisiones**:
+  - `comision`: Comisión que paga el **inquilino** (equivale a 1 mes de alquiler)
+  - `comision_inmo`: Porcentaje de comisión de administración que se descuenta del pago al **propietario**
 
 ---
 

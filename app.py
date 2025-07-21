@@ -7,13 +7,13 @@ Entradas
 1. maestro.xlsx  – hoja 'maestro' con las columnas:
    nombre_inmueble, dir_inmueble, inquilino, in_dni,
    propietario, prop_dni, precio_original, actualizacion,
-   indice, fecha_inicio_contrato, duracion_meses, comision_inmo
+   indice, fecha_inicio_contrato, duracion_meses, comision_inmo,
+   comision, deposito
 2. Parámetro --mes AAAA-MM (opcional).  
    • Si se omite ⇒ se usa el mes calendario actual.
 
 Salidas
--------http://localhost:8080/  
-http://localhost:8080/Callback
+-------
 • pagos_YYYY_MM.xlsx en la misma carpeta (o la que indiques con --outdir)
   con las columnas:
   nombre_inmueble, dir_inmueble, inquilino, propietario,
@@ -27,6 +27,7 @@ import datetime as dt
 from pathlib import Path
 
 import pandas as pd
+import numpy as np
 import requests
 from dateutil.relativedelta import relativedelta
 import gspread
@@ -44,7 +45,7 @@ from urllib3.exceptions import InsecureRequestWarning
 MAESTRO_PATH = Path("maestro.xlsx")      # <-- cámbialo si hace falta
 HOJA_MAESTRO = "maestro"
 
-API_INFLACION = "https://api.argentinadatos.com/v1/finanzas/indices/inflacion"  #:contentReference[oaicite:0]{index=0}
+API_INFLACION = "https://api.argentinadatos.com/v1/finanzas/indices/inflacion"
 # --------------------------------------------------
 
 # ---------- Google Sheets Config ----------
@@ -93,7 +94,8 @@ def inflacion_acumulada(df_infl: pd.DataFrame, hasta: dt.date, meses: int) -> fl
     ultimo = df_infl[df_infl["fecha"] <= limite].tail(meses)
     # Composición: (1+r1)*(1+r2)*... - 1
     factores = (1 + ultimo["valor"].astype(float) / 100)
-    return factores.prod()
+    producto = factores.prod()
+    return float(np.asarray(producto).item())
 
 
 # ---------- ICL ----------
@@ -109,6 +111,8 @@ def traer_factor_icl(fecha_inicio: dt.date, fecha_hasta: dt.date) -> float:
         raise ValueError("No se encontraron datos de ICL para el rango dado.")
     valor_inicio = data[-1]["valor"]  # El primer valor cronológico es el último del array
     valor_final = data[0]["valor"]    # El último valor cronológico es el primero del array
+    logging.info(f"[ICL] valor_inicio: {valor_inicio}, valor_final: {valor_final}")
+    logging.info(f"Factor [ICL] {valor_final/valor_inicio}")
     return float(valor_final) / float(valor_inicio)
 
 
@@ -118,7 +122,7 @@ def precio_ajustado(precio_anterior: float,
                     indice: str,
                     df_infl: pd.DataFrame,
                     fecha_ref: dt.date,
-                    fecha_inicio: dt.date = None) -> float:
+                    fecha_inicio: dt.date | None = None) -> float:
     """Devuelve el precio ajustado según la política de la fila."""
     if frecuencia not in {"trimestral", "semestral", "anual"}:
         return precio_anterior  # no debería ocurrir
@@ -131,7 +135,7 @@ def precio_ajustado(precio_anterior: float,
         if fecha_inicio is None:
             raise ValueError("Se requiere fecha_inicio para calcular ICL")
         factor = traer_factor_icl(fecha_inicio, fecha_ref)
-    else:  # Porcentaje fijo: “10 %”, “7.5%”, etc.
+    else:  # Porcentaje fijo: "10 %", "7.5%", etc.
         pct = float(indice.strip().replace("%", "").replace(",", "."))
         factor = 1 + pct / 100
 
@@ -139,9 +143,47 @@ def precio_ajustado(precio_anterior: float,
 
 
 def calcular_comision(comision_str: str, precio_mes: float) -> float:
-    """Comisión siempre en porcentaje—ej.: “5 %”."""
-    pct = float(comision_str.strip().replace("%", "").replace(",", "."))
-    return round(precio_mes * pct / 100, 2)
+    """Comisión siempre en porcentaje—ej.: "5 %"."""
+    try:
+        pct = float(comision_str.strip().replace("%", "").replace(",", "."))
+        return round(precio_mes * pct / 100, 2)
+    except (ValueError, AttributeError) as e:
+        raise ValueError(f"Formato de comisión inválido: '{comision_str}'")
+
+
+def calcular_cuotas_adicionales(precio_base: float, 
+                               comision_inquilino: str, 
+                               deposito: str, 
+                               mes_actual: int) -> float:
+    """
+    Calcula el monto adicional por comisión y depósito en cuotas.
+    
+    Args:
+        precio_base: Precio base del alquiler
+        comision_inquilino: "Pagado", "2 cuotas", o "3 cuotas"
+        deposito: "Pagado", "2 cuotas", o "3 cuotas"
+        mes_actual: Mes actual del cálculo (1-based desde inicio contrato)
+    
+    Returns:
+        Monto adicional a sumar al alquiler base
+    """
+    monto_adicional = 0.0
+    
+    # Calcular comisión en cuotas (equivale a 1 mes de alquiler)
+    if comision_inquilino == "2 cuotas" and mes_actual <= 2:
+        monto_adicional += precio_base / 2
+    elif comision_inquilino == "3 cuotas" and mes_actual <= 3:
+        monto_adicional += precio_base / 3
+    # Si es "Pagado", no se suma nada
+    
+    # Calcular depósito en cuotas (equivale a 1 mes de alquiler)
+    if deposito == "2 cuotas" and mes_actual <= 2:
+        monto_adicional += precio_base / 2
+    elif deposito == "3 cuotas" and mes_actual <= 3:
+        monto_adicional += precio_base / 3
+    # Si es "Pagado", no se suma nada
+    
+    return round(monto_adicional, 2)
 
 
 def get_gspread_client():
@@ -175,54 +217,133 @@ def main() -> None:
 
     registros = []
     for _, fila in maestro.iterrows():
+        # Verificar campos requeridos
+        campos_requeridos = [
+            "precio_original", "fecha_inicio_contrato", "duracion_meses", 
+            "actualizacion", "indice", "comision_inmo"
+        ]
+        
+        # Verificar si faltan campos o están vacíos
+        campos_faltantes = []
+        for campo in campos_requeridos:
+            if campo not in fila or pd.isna(fila[campo]) or str(fila[campo]).strip() == "":
+                campos_faltantes.append(campo)
+        
+        # Si faltan campos requeridos, crear registro con campos calculados en blanco
+        if campos_faltantes:
+            logging.warning(f"Fila {fila.get('nombre_inmueble', 'N/A')}: faltan campos {campos_faltantes}. Se creará registro con campos calculados en blanco.")
+            registros.append({
+                "nombre_inmueble": fila.get("nombre_inmueble", ""),
+                "dir_inmueble": fila.get("dir_inmueble", ""),
+                "inquilino": fila.get("inquilino", ""),
+                "propietario": fila.get("propietario", ""),
+                "mes_actual": args.mes,
+                "precio_mes_actual": "",
+                "precio_base": "",
+                "cuotas_adicionales": "",
+                "comision_inmo": "",
+                "pago_prop": "",
+                "actualizacion": "NO",
+                "porc_actual": "",
+                "meses_prox_actualizacion": "",
+                "meses_prox_renovacion": ""
+            })
+            continue
+        
         # ¿Sigue vigente el contrato?
         inicio = pd.to_datetime(fila["fecha_inicio_contrato"]).date()
         if (fecha_ref - inicio).days // 30 >= fila["duracion_meses"]:
             continue  # contrato finalizado ⇒ omitir
 
         # Calcular meses desde inicio y ciclos completos
-        freq_meses = {"trimestral": 3, "semestral": 6, "anual": 12}[fila["actualizacion"]]
+        try:
+            freq_meses = {"trimestral": 3, "semestral": 6, "anual": 12}[fila["actualizacion"]]
+        except KeyError:
+            logging.warning(f"Valor de actualización inválido para {fila['nombre_inmueble']}: {fila['actualizacion']}. Usando 'trimestral' como default.")
+            freq_meses = 3  # Default a trimestral
+            
         meses_desde_inicio = (y - inicio.year) * 12 + (m - inicio.month)
         ciclos_cumplidos = meses_desde_inicio // freq_meses
         resto = meses_desde_inicio % freq_meses
-        aplica_actualizacion = "SI" if resto == 0 else "NO"
+        aplica_actualizacion = "SI" if resto == 0 and ciclos_cumplidos > 0 else "NO"
 
         # Calcular el factor acumulado
-        if fila["indice"].upper() == "IPC":
-            factor_total = 1.0
-            for ciclo in range(ciclos_cumplidos):
-                fecha_corte = inicio + relativedelta(months=(ciclo + 1) * freq_meses)
-                factor_ciclo = inflacion_acumulada(inflacion_df, fecha_corte, freq_meses)
-                factor_total *= factor_ciclo
-            # Porcentaje aplicado este mes (solo si hay actualización)
-            if aplica_actualizacion == "SI" and ciclos_cumplidos > 0:
-                fecha_corte = inicio + relativedelta(months=ciclos_cumplidos * freq_meses)
-                porc_actual = (inflacion_acumulada(inflacion_df, fecha_corte, freq_meses) - 1) * 100
+        try:
+            if fila["indice"].upper() == "IPC":
+                factor_total = 1.0
+                for ciclo in range(ciclos_cumplidos):
+                    fecha_corte = inicio + relativedelta(months=(ciclo + 1) * freq_meses)
+                    factor_ciclo = inflacion_acumulada(inflacion_df, fecha_corte, freq_meses)
+                    factor_total *= factor_ciclo
+                # Porcentaje aplicado este mes (solo si hay actualización)
+                if aplica_actualizacion == "SI" and ciclos_cumplidos > 0:
+                    fecha_corte = inicio + relativedelta(months=ciclos_cumplidos * freq_meses)
+                    porc_actual = (inflacion_acumulada(inflacion_df, fecha_corte, freq_meses) - 1) * 100
+                else:
+                    porc_actual = 0
+            elif fila["indice"].upper() == "ICL":
+                factor_total = 1.0
+                for ciclo in range(ciclos_cumplidos):
+                    fecha_inicio_ciclo = inicio + relativedelta(months=ciclo * freq_meses)
+                    fecha_fin_ciclo = fecha_inicio_ciclo + relativedelta(months=freq_meses)
+                    factor_ciclo = traer_factor_icl(fecha_inicio_ciclo, fecha_fin_ciclo)
+                    factor_total *= factor_ciclo
+                if aplica_actualizacion == "SI" and ciclos_cumplidos > 0:
+                    fecha_inicio_ult = inicio + relativedelta(months=(ciclos_cumplidos - 1) * freq_meses)
+                    fecha_fin_ult = fecha_inicio_ult + relativedelta(months=freq_meses)
+                    porc_actual = (traer_factor_icl(fecha_inicio_ult, fecha_fin_ult) - 1) * 100
+                    logging.info(
+                        f"Inicio último ciclo: {fecha_inicio_ult}, "
+                        f"Fin último ciclo: {fecha_fin_ult}, "
+                        f"Factor ICL: {traer_factor_icl(fecha_inicio_ult, fecha_fin_ult)}, "
+                        f"Porcentaje actual: {porc_actual}"
+                    )
+                else:
+                    porc_actual = 0
             else:
-                porc_actual = 0
-        elif fila["indice"].upper() == "ICL":
+                pct = float(fila["indice"].strip().replace("%", "").replace(",", "."))
+                factor_total = (1 + pct / 100) ** ciclos_cumplidos
+                porc_actual = pct if aplica_actualizacion == "SI" and ciclos_cumplidos > 0 else 0
+        except (ValueError, AttributeError, KeyError) as e:
+            logging.warning(f"Error procesando índice para {fila['nombre_inmueble']}: {e}. Usando precio original.")
             factor_total = 1.0
-            for ciclo in range(ciclos_cumplidos):
-                fecha_inicio_ciclo = inicio + relativedelta(months=ciclo * freq_meses)
-                fecha_fin_ciclo = fecha_inicio_ciclo + relativedelta(months=freq_meses)
-                factor_ciclo = traer_factor_icl(fecha_inicio_ciclo, fecha_fin_ciclo)
-                factor_total *= factor_ciclo
-            if aplica_actualizacion == "SI" and ciclos_cumplidos > 0:
-                fecha_inicio_ult = inicio + relativedelta(months=(ciclos_cumplidos - 1) * freq_meses)
-                fecha_fin_ult = fecha_inicio_ult + relativedelta(months=freq_meses)
-                porc_actual = (traer_factor_icl(fecha_inicio_ult, fecha_fin_ult) - 1) * 100
-            else:
-                porc_actual = 0
-        else:
-            pct = float(fila["indice"].strip().replace("%", "").replace(",", "."))
-            factor_total = (1 + pct / 100) ** ciclos_cumplidos
-            porc_actual = pct if aplica_actualizacion == "SI" and ciclos_cumplidos > 0 else 0
+            porc_actual = 0
 
-        precio_actual = round(fila["precio_original"] * factor_total, 2)
-        comision = calcular_comision(fila["comision_inmo"], precio_actual)
-        pago_prop = round(precio_actual - comision, 2)
+        try:
+            precio_actual = round(fila["precio_original"] * factor_total, 2)
+        except (ValueError, TypeError) as e:
+            logging.warning(f"Error calculando precio actual para {fila['nombre_inmueble']}: {e}. Usando precio original.")
+            precio_actual = float(fila["precio_original"]) if fila["precio_original"] else 0
+        
+        # Calcular cuotas adicionales (comisión al inquilino y depósito)
+        cuotas_adicionales = calcular_cuotas_adicionales(
+            precio_actual,
+            fila.get("comision", "Pagado"),  # Default "Pagado" si no existe la columna
+            fila.get("deposito", "Pagado"),  # Default "Pagado" si no existe la columna
+            meses_desde_inicio + 1  # +1 porque meses_desde_inicio es 0-based
+        )
+        
+        # El precio final para el inquilino incluye las cuotas
+        precio_final_inquilino = precio_actual + cuotas_adicionales
+        
+        # La comisión de administración se calcula sobre el precio base (sin cuotas)
+        try:
+            comision = calcular_comision(fila["comision_inmo"], precio_actual)
+            pago_prop = round(precio_actual - comision, 2)
+        except (ValueError, TypeError) as e:
+            logging.warning(f"Error calculando comisión para {fila['nombre_inmueble']}: {e}. Usando valores por defecto.")
+            comision = 0
+            pago_prop = precio_actual
 
         meses_prox_renovacion = fila["duracion_meses"] - meses_desde_inicio
+        
+        # Calcular meses hasta la próxima actualización
+        if resto == 0 and ciclos_cumplidos > 0:
+            # Estamos en un mes de actualización, la próxima es en un ciclo completo
+            meses_prox_actualizacion = freq_meses
+        else:
+            # Faltan (freq_meses - resto) meses para la próxima actualización
+            meses_prox_actualizacion = freq_meses - resto
 
         registros.append({
             "nombre_inmueble": fila["nombre_inmueble"],
@@ -230,11 +351,14 @@ def main() -> None:
             "inquilino": fila["inquilino"],
             "propietario": fila["propietario"],
             "mes_actual": args.mes,
-            "precio_mes_actual": precio_actual,
+            "precio_mes_actual": precio_final_inquilino,  # Precio que paga el inquilino
+            "precio_base": precio_actual,  # Precio base sin cuotas
+            "cuotas_adicionales": cuotas_adicionales,  # Monto de cuotas este mes
             "comision_inmo": comision,
             "pago_prop": pago_prop,
             "actualizacion": aplica_actualizacion,
             "porc_actual": round(porc_actual, 2) if aplica_actualizacion == "SI" else "",
+            "meses_prox_actualizacion": meses_prox_actualizacion,
             "meses_prox_renovacion": meses_prox_renovacion
         })
 
@@ -242,7 +366,7 @@ def main() -> None:
     # Escribir pagos en una nueva hoja de Google Sheets
     sheet_name = f"pagos_{args.mes.replace('-', '_')}"
     try:
-        sh.add_worksheet(title=sheet_name, rows=str(len(pagos)+10), cols=str(len(pagos.columns)+2))
+        sh.add_worksheet(title=sheet_name, rows=len(pagos)+10, cols=len(pagos.columns)+2)
     except Exception:
         pass  # Si ya existe, continuar
     ws_pagos = sh.worksheet(sheet_name)
