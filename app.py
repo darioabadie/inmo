@@ -42,8 +42,7 @@ from urllib3.exceptions import InsecureRequestWarning
 
 
 # ---------- Parámetros de configuración ----------
-MAESTRO_PATH = Path("maestro.xlsx")      # <-- cámbialo si hace falta
-HOJA_MAESTRO = "maestro"
+
 
 API_INFLACION = "https://api.argentinadatos.com/v1/finanzas/indices/inflacion"
 # --------------------------------------------------
