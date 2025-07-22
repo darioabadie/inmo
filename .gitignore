@@ -1,0 +1,5 @@
+*.csv
+*.xlsx
+client_secret*
+*.pickle
+*.pyc
