@@ -9,7 +9,8 @@ from datetime import date
 # Agregar el directorio padre al path para importar el módulo app
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app import inflacion_acumulada, calcular_comision, calcular_cuotas_adicionales
+from inmobiliaria.services.calculations import calcular_comision, calcular_cuotas_adicionales
+from inmobiliaria.services.inflation import inflacion_acumulada
 from tests.test_data import get_inflacion_df_test, EXPECTED_CALCULATIONS
 
 
