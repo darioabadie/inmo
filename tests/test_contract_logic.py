@@ -82,6 +82,29 @@ class TestContractLogic(unittest.TestCase):
                            f"Meses {meses_desde_inicio}: esperado {ciclos_esperados} ciclos, "
                            f"calculado {ciclos_calculados}")
     
+    def test_ciclos_cumplidos_cuatrimestral(self):
+        """Test cálculo de ciclos cumplidos para contrato cuatrimestral"""
+        freq_meses = 4  # Cuatrimestral
+        
+        test_cases = [
+            (0, 0),   # Mes 0: 0 ciclos
+            (3, 0),   # Mes 3: 0 ciclos
+            (4, 1),   # Mes 4: 1 ciclo completo
+            (7, 1),   # Mes 7: 1 ciclo completo
+            (8, 2),   # Mes 8: 2 ciclos completos
+            (12, 3),  # Mes 12: 3 ciclos completos
+            (16, 4),  # Mes 16: 4 ciclos completos
+            (20, 5),  # Mes 20: 5 ciclos completos
+            (24, 6),  # Mes 24: 6 ciclos completos
+        ]
+        
+        for meses_desde_inicio, ciclos_esperados in test_cases:
+            ciclos_calculados = meses_desde_inicio // freq_meses
+            
+            self.assertEqual(ciclos_calculados, ciclos_esperados,
+                           f"Meses {meses_desde_inicio}: esperado {ciclos_esperados} ciclos, "
+                           f"calculado {ciclos_calculados}")
+    
     def test_aplicacion_actualizacion_trimestral(self):
         """Test lógica de aplicación de actualización trimestral"""
         freq_meses = 3
@@ -108,6 +131,32 @@ class TestContractLogic(unittest.TestCase):
             self.assertEqual(aplica, "NO",
                            f"Mes {meses} trimestral NO debe aplicar actualización")
     
+    def test_aplicacion_actualizacion_cuatrimestral(self):
+        """Test lógica de aplicación de actualización cuatrimestral"""
+        freq_meses = 4
+        
+        # Casos donde DEBE aplicar actualización (resto = 0 y ciclos > 0)
+        casos_si = [4, 8, 12, 16, 20, 24]
+        
+        for meses in casos_si:
+            ciclos_cumplidos = meses // freq_meses
+            resto = meses % freq_meses
+            aplica = "SI" if resto == 0 and ciclos_cumplidos > 0 else "NO"
+            
+            self.assertEqual(aplica, "SI",
+                           f"Mes {meses} cuatrimestral debe aplicar actualización")
+        
+        # Casos donde NO DEBE aplicar actualización
+        casos_no = [0, 1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15, 17, 18, 19, 21, 22, 23]
+        
+        for meses in casos_no:
+            ciclos_cumplidos = meses // freq_meses
+            resto = meses % freq_meses
+            aplica = "SI" if resto == 0 and ciclos_cumplidos > 0 else "NO"
+            
+            self.assertEqual(aplica, "NO",
+                           f"Mes {meses} cuatrimestral NO debe aplicar actualización")
+    
     def test_meses_proxima_actualizacion_trimestral(self):
         """Test cálculo de meses hasta próxima actualización trimestral"""
         freq_meses = 3
@@ -120,6 +169,37 @@ class TestContractLogic(unittest.TestCase):
             (4, 2),   # Mes 4: faltan 2 meses
             (5, 1),   # Mes 5: falta 1 mes
             (6, 3),   # Mes 6 (actualización): próxima en 3 meses
+        ]
+        
+        for meses_desde_inicio, meses_esperados in test_cases:
+            ciclos_cumplidos = meses_desde_inicio // freq_meses
+            resto = meses_desde_inicio % freq_meses
+            
+            if resto == 0 and ciclos_cumplidos > 0:
+                # Estamos en mes de actualización
+                meses_prox_actualizacion = freq_meses
+            else:
+                # Faltan meses para próxima actualización
+                meses_prox_actualizacion = freq_meses - resto
+            
+            self.assertEqual(meses_prox_actualizacion, meses_esperados,
+                           f"Mes {meses_desde_inicio}: esperado {meses_esperados} meses "
+                           f"hasta próxima actualización, calculado {meses_prox_actualizacion}")
+    
+    def test_meses_proxima_actualizacion_cuatrimestral(self):
+        """Test cálculo de meses hasta próxima actualización cuatrimestral"""
+        freq_meses = 4
+        
+        test_cases = [
+            (0, 4),   # Mes 0: faltan 4 meses para primera actualización
+            (1, 3),   # Mes 1: faltan 3 meses
+            (2, 2),   # Mes 2: faltan 2 meses
+            (3, 1),   # Mes 3: falta 1 mes
+            (4, 4),   # Mes 4 (actualización): próxima en 4 meses
+            (5, 3),   # Mes 5: faltan 3 meses
+            (6, 2),   # Mes 6: faltan 2 meses
+            (7, 1),   # Mes 7: falta 1 mes
+            (8, 4),   # Mes 8 (actualización): próxima en 4 meses
         ]
         
         for meses_desde_inicio, meses_esperados in test_cases:
@@ -212,7 +292,7 @@ class TestContractValidation(unittest.TestCase):
     
     def test_campos_requeridos_faltantes(self):
         """Test contrato con campos faltantes"""
-        contrato = CONTRATOS_TEST_DATA[3]  # Casa Incompleta - con campos faltantes
+        contrato = CONTRATOS_TEST_DATA[4]  # Casa Incompleta - con campos faltantes
         campos_requeridos = [
             "precio_original", "fecha_inicio_contrato", "duracion_meses",
             "actualizacion", "indice", "comision_inmo"

@@ -43,7 +43,6 @@ from urllib3.exceptions import InsecureRequestWarning
 
 # ---------- Parámetros de configuración ----------
 
-
 API_INFLACION = "https://api.argentinadatos.com/v1/finanzas/indices/inflacion"
 # --------------------------------------------------
 
@@ -123,10 +122,10 @@ def precio_ajustado(precio_anterior: float,
                     fecha_ref: dt.date,
                     fecha_inicio: dt.date | None = None) -> float:
     """Devuelve el precio ajustado según la política de la fila."""
-    if frecuencia not in {"trimestral", "semestral", "anual"}:
+    if frecuencia not in {"trimestral", "cuatrimestral", "semestral", "anual"}:
         return precio_anterior  # no debería ocurrir
 
-    meses = {"trimestral": 3, "semestral": 6, "anual": 12}[frecuencia]
+    meses = {"trimestral": 3, "cuatrimestral": 4, "semestral": 6, "anual": 12}[frecuencia]
 
     if indice.upper() == "IPC":
         factor = inflacion_acumulada(df_infl, fecha_ref, meses)
@@ -240,6 +239,7 @@ def main() -> None:
                 "precio_mes_actual": "",
                 "precio_base": "",
                 "cuotas_adicionales": "",
+                "municipalidad": fila.get("municipalidad", "") if fila.get("municipalidad") else "",
                 "comision_inmo": "",
                 "pago_prop": "",
                 "actualizacion": "NO",
@@ -256,7 +256,7 @@ def main() -> None:
 
         # Calcular meses desde inicio y ciclos completos
         try:
-            freq_meses = {"trimestral": 3, "semestral": 6, "anual": 12}[fila["actualizacion"]]
+            freq_meses = {"trimestral": 3, "cuatrimestral": 4, "semestral": 6, "anual": 12}[fila["actualizacion"]]
         except KeyError:
             logging.warning(f"Valor de actualización inválido para {fila['nombre_inmueble']}: {fila['actualizacion']}. Usando 'trimestral' como default.")
             freq_meses = 3  # Default a trimestral
@@ -322,8 +322,11 @@ def main() -> None:
             meses_desde_inicio + 1  # +1 porque meses_desde_inicio es 0-based
         )
         
-        # El precio final para el inquilino incluye las cuotas
-        precio_final_inquilino = precio_actual + cuotas_adicionales
+        # Obtener gastos municipales
+        municipalidad = float(fila.get("municipalidad", 0)) if fila.get("municipalidad") and str(fila.get("municipalidad")).strip() != "" else 0
+        
+        # El precio final para el inquilino incluye las cuotas y gastos municipales
+        precio_final_inquilino = precio_actual + cuotas_adicionales + municipalidad
         
         # La comisión de administración se calcula sobre el precio base (sin cuotas)
         try:
@@ -351,8 +354,9 @@ def main() -> None:
             "propietario": fila["propietario"],
             "mes_actual": args.mes,
             "precio_mes_actual": precio_final_inquilino,  # Precio que paga el inquilino
-            "precio_base": precio_actual,  # Precio base sin cuotas
+            "precio_base": precio_actual,  # Precio base sin cuotas ni municipalidad
             "cuotas_adicionales": cuotas_adicionales,  # Monto de cuotas este mes
+            "municipalidad": municipalidad,  # Gastos municipales
             "comision_inmo": comision,
             "pago_prop": pago_prop,
             "actualizacion": aplica_actualizacion,

@@ -13,6 +13,84 @@ from app import inflacion_acumulada, calcular_comision, calcular_cuotas_adiciona
 from tests.test_data import get_inflacion_df_test, EXPECTED_CALCULATIONS
 
 
+class TestMunicipalidadCalculations(unittest.TestCase):
+    """Tests para cálculos que incluyen gastos municipales"""
+    
+    def test_precio_final_con_municipalidad(self):
+        """Test cálculo precio final incluyendo municipalidad"""
+        caso = EXPECTED_CALCULATIONS["municipalidad"]["con_municipalidad"]
+        
+        precio_final = caso["precio_base"] + caso["cuotas_adicionales"] + caso["municipalidad"]
+        
+        self.assertEqual(precio_final, caso["expected_precio_final"],
+                        f"Precio final debe ser {caso['expected_precio_final']}")
+    
+    def test_precio_final_sin_municipalidad(self):
+        """Test precio final sin gastos municipales"""
+        caso = EXPECTED_CALCULATIONS["municipalidad"]["sin_municipalidad"]
+        
+        precio_final = caso["precio_base"] + caso["cuotas_adicionales"] + caso["municipalidad"]
+        
+        self.assertEqual(precio_final, caso["expected_precio_final"],
+                        f"Sin municipalidad debe ser solo precio base: {caso['expected_precio_final']}")
+    
+    def test_precio_final_solo_municipalidad(self):
+        """Test precio final solo con gastos municipales (sin cuotas)"""
+        caso = EXPECTED_CALCULATIONS["municipalidad"]["solo_municipalidad"]
+        
+        precio_final = caso["precio_base"] + caso["cuotas_adicionales"] + caso["municipalidad"]
+        
+        self.assertEqual(precio_final, caso["expected_precio_final"],
+                        f"Solo municipalidad debe ser {caso['expected_precio_final']}")
+    
+    def test_comision_no_incluye_municipalidad(self):
+        """Test que la comisión se calcula solo sobre precio base, no incluye municipalidad"""
+        caso = EXPECTED_CALCULATIONS["municipalidad"]["comision_sobre_precio_base"]
+        
+        # La comisión se calcula solo sobre precio_base
+        comision_calculada = calcular_comision(caso["comision_porcentaje"], caso["precio_base"])
+        
+        self.assertEqual(comision_calculada, caso["expected_comision"],
+                        f"Comisión debe ser {caso['expected_comision']} (solo sobre precio base)")
+    
+    def test_pago_propietario_no_incluye_municipalidad(self):
+        """Test que el pago al propietario es precio_base menos comisión (sin municipalidad)"""
+        caso = EXPECTED_CALCULATIONS["municipalidad"]["comision_sobre_precio_base"]
+        
+        comision = calcular_comision(caso["comision_porcentaje"], caso["precio_base"])
+        pago_prop = caso["precio_base"] - comision
+        
+        self.assertEqual(pago_prop, caso["expected_pago_prop"],
+                        f"Pago propietario debe ser {caso['expected_pago_prop']} (precio_base - comision)")
+    
+    def test_municipalidad_vacia_o_none(self):
+        """Test manejo de municipalidad vacía o None"""
+        # Simular datos con municipalidad vacía
+        casos_vacios = [None, "", 0, "0", "  "]
+        
+        for municipalidad_val in casos_vacios:
+            with self.subTest(municipalidad=municipalidad_val):
+                # Simular el procesamiento que hace el código principal
+                if municipalidad_val and str(municipalidad_val).strip() != "":
+                    municipalidad = float(municipalidad_val)
+                else:
+                    municipalidad = 0
+                
+                precio_final = 100000 + 0 + municipalidad  # precio_base + cuotas + municipalidad
+                self.assertEqual(precio_final, 100000,
+                               f"Municipalidad '{municipalidad_val}' debe resultar en 0")
+    
+    def test_municipalidad_formato_string(self):
+        """Test manejo de municipalidad como string"""
+        municipalidad_str = "15000.50"
+        municipalidad = float(municipalidad_str)
+        
+        precio_final = 100000 + 5000 + municipalidad
+        
+        self.assertEqual(precio_final, 120000.50,
+                        "Debe manejar municipalidad como string correctamente")
+
+
 class TestInflacionCalculations(unittest.TestCase):
     """Tests para cálculos de inflación"""
     

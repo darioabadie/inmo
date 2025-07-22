@@ -43,7 +43,25 @@ CONTRATOS_TEST_DATA = [
         "duracion_meses": 24,
         "comision_inmo": "5%",
         "comision": "2 cuotas",
-        "deposito": "3 cuotas"
+        "deposito": "3 cuotas",
+        "municipalidad": 15000.0
+    },
+    {
+        "nombre_inmueble": "Casa Caballito",
+        "dir_inmueble": "Rivadavia 5678",
+        "inquilino": "Roberto Sánchez",
+        "in_dni": "22334455",
+        "propietario": "Laura Martínez",
+        "prop_dni": "55443322",
+        "precio_original": 120000.0,
+        "actualizacion": "cuatrimestral",
+        "indice": "IPC",
+        "fecha_inicio_contrato": "2024-02-01",
+        "duracion_meses": 24,
+        "comision_inmo": "4.5%",
+        "comision": "Pagado",
+        "deposito": "2 cuotas",
+        "municipalidad": 12000.0
     },
     {
         "nombre_inmueble": "Depto Belgrano",
@@ -59,7 +77,8 @@ CONTRATOS_TEST_DATA = [
         "duracion_meses": 36,
         "comision_inmo": "4%",
         "comision": "Pagado",
-        "deposito": "2 cuotas"
+        "deposito": "2 cuotas",
+        "municipalidad": 8500.0
     },
     {
         "nombre_inmueble": "Local Comercial",
@@ -75,7 +94,8 @@ CONTRATOS_TEST_DATA = [
         "duracion_meses": 60,
         "comision_inmo": "3%",
         "comision": "3 cuotas",
-        "deposito": "Pagado"
+        "deposito": "Pagado",
+        "municipalidad": 0.0  # Sin gastos municipales
     },
     # Caso con campos faltantes para probar validación
     {
@@ -90,7 +110,8 @@ CONTRATOS_TEST_DATA = [
         "duracion_meses": 24,
         "comision_inmo": "5%",
         "comision": "Pagado",
-        "deposito": "Pagado"
+        "deposito": "Pagado",
+        "municipalidad": 5000.0  # Municipalidad presente aunque otros campos falten
     }
 ]
 
@@ -144,6 +165,33 @@ EXPECTED_CALCULATIONS = {
             "deposito": "3 cuotas",
             "mes": 1,
             "expected": 83333.33  # 50000 + 33333.33
+        }
+    },
+    "municipalidad": {
+        "con_municipalidad": {
+            "precio_base": 100000,
+            "cuotas_adicionales": 10000,
+            "municipalidad": 15000,
+            "expected_precio_final": 125000  # 100000 + 10000 + 15000
+        },
+        "sin_municipalidad": {
+            "precio_base": 80000,
+            "cuotas_adicionales": 0,
+            "municipalidad": 0,
+            "expected_precio_final": 80000  # Solo precio base
+        },
+        "solo_municipalidad": {
+            "precio_base": 150000,
+            "cuotas_adicionales": 0,
+            "municipalidad": 8500,
+            "expected_precio_final": 158500  # 150000 + 8500
+        },
+        "comision_sobre_precio_base": {
+            "precio_base": 100000,
+            "municipalidad": 15000,
+            "comision_porcentaje": "5%",
+            "expected_comision": 5000,  # Solo sobre precio_base (100000 * 5%)
+            "expected_pago_prop": 95000  # precio_base - comision (100000 - 5000)
         }
     }
 }

@@ -56,7 +56,7 @@ class TestIntegrationFlow(unittest.TestCase):
     def test_procesamiento_contrato_semestral_sin_actualizacion(self):
         """Test procesamiento contrato semestral sin actualización"""
         # Contrato: Depto Belgrano - semestral, 10%, inicio 2024-03-01
-        contrato = CONTRATOS_TEST_DATA[1]
+        contrato = CONTRATOS_TEST_DATA[2]  # Ahora Depto Belgrano es el índice 2
         fecha_ref = date(2024, 7, 1)  # Julio 2024 (mes 4 - sin actualización)
         
         inicio = pd.to_datetime(contrato["fecha_inicio_contrato"]).date()
@@ -84,7 +84,7 @@ class TestIntegrationFlow(unittest.TestCase):
     def test_calculo_precio_con_porcentaje_fijo(self):
         """Test cálculo de precio con porcentaje fijo"""
         # Depto Belgrano usa 10% fijo
-        contrato = CONTRATOS_TEST_DATA[1]
+        contrato = CONTRATOS_TEST_DATA[2]  # Ahora Depto Belgrano es el índice 2
         precio_original = float(contrato["precio_original"])
         
         # Simular 1 ciclo cumplido (actualización semestral)
@@ -97,6 +97,119 @@ class TestIntegrationFlow(unittest.TestCase):
         self.assertEqual(precio_actual, expected_precio,
                         f"Precio con 10% debe ser {expected_precio}")
     
+    def test_calculo_precio_final_con_municipalidad(self):
+        """Test integración completa: precio final con municipalidad"""
+        # Casa Palermo: precio_base 100000, municipalidad 15000, comisión 2 cuotas, depósito 3 cuotas
+        contrato = CONTRATOS_TEST_DATA[0]
+        
+        precio_base = float(contrato["precio_original"])  # 100000
+        municipalidad = float(contrato["municipalidad"])  # 15000
+        mes_actual = 1  # Primer mes
+        
+        # Simular calcular_cuotas_adicionales
+        from app import calcular_cuotas_adicionales
+        cuotas_adicionales = calcular_cuotas_adicionales(
+            precio_base, 
+            contrato["comision"],    # "2 cuotas"
+            contrato["deposito"],    # "3 cuotas"
+            mes_actual
+        )
+        
+        # Cuotas esperadas mes 1: 50000 (comisión) + 33333.33 (depósito) = 83333.33
+        expected_cuotas = 83333.33
+        self.assertAlmostEqual(cuotas_adicionales, expected_cuotas, places=2,
+                              msg="Cuotas adicionales mes 1 deben ser 83333.33")
+        
+        # Precio final inquilino
+        precio_final_inquilino = precio_base + cuotas_adicionales + municipalidad
+        expected_precio_final = 100000 + 83333.33 + 15000  # 198333.33
+        
+        self.assertAlmostEqual(precio_final_inquilino, expected_precio_final, places=2,
+                              msg=f"Precio final inquilino debe ser {expected_precio_final}")
+        
+        # Comisión inmobiliaria (solo sobre precio base)
+        from app import calcular_comision
+        comision_inmo = calcular_comision(contrato["comision_inmo"], precio_base)
+        expected_comision = 5000  # 100000 * 5%
+        
+        self.assertEqual(comision_inmo, expected_comision,
+                        "Comisión debe calcularse solo sobre precio base")
+        
+        # Pago propietario (precio base menos comisión)
+        pago_prop = precio_base - comision_inmo
+        expected_pago_prop = 95000  # 100000 - 5000
+        
+        self.assertEqual(pago_prop, expected_pago_prop,
+                        "Pago propietario debe ser precio base menos comisión")
+    
+    def test_calculo_precio_final_sin_municipalidad(self):
+        """Test integración: contrato sin gastos municipales"""
+        # Local Comercial: municipalidad = 0
+        contrato = CONTRATOS_TEST_DATA[3]  # Ahora Local Comercial es el índice 3
+        
+        precio_base = float(contrato["precio_original"])  # 200000
+        municipalidad = float(contrato["municipalidad"])  # 0
+        mes_actual = 1
+        
+        from app import calcular_cuotas_adicionales, calcular_comision
+        
+        cuotas_adicionales = calcular_cuotas_adicionales(
+            precio_base, 
+            contrato["comision"],    # "3 cuotas"
+            contrato["deposito"],    # "Pagado"
+            mes_actual
+        )
+        
+        # Solo comisión en 3 cuotas: 200000 / 3 = 66666.67
+        expected_cuotas = 66666.67
+        self.assertAlmostEqual(cuotas_adicionales, expected_cuotas, places=2)
+        
+        # Precio final sin municipalidad
+        precio_final_inquilino = precio_base + cuotas_adicionales + municipalidad
+        expected_precio_final = 200000 + 66666.67 + 0  # 266666.67
+        
+        self.assertAlmostEqual(precio_final_inquilino, expected_precio_final, places=2)
+        
+        # Comisión inmobiliaria
+        comision_inmo = calcular_comision(contrato["comision_inmo"], precio_base)
+        expected_comision = 6000  # 200000 * 3%
+        
+        self.assertEqual(comision_inmo, expected_comision)
+    
+    def test_registro_completo_con_municipalidad(self):
+        """Test estructura completa del registro con municipalidad"""
+        # Simular el registro que se genera en el main()
+        contrato = CONTRATOS_TEST_DATA[2]  # Depto Belgrano ahora es el índice 2
+        
+        registro_esperado = {
+            "nombre_inmueble": "Depto Belgrano",
+            "dir_inmueble": "Cabildo 567",
+            "inquilino": "Ana López",
+            "propietario": "Carlos Ruiz",
+            "mes_actual": "2024-07",
+            "precio_mes_actual": 158500.0,  # precio_base + cuotas + municipalidad
+            "precio_base": 150000.0,        # Precio base sin cuotas ni municipalidad
+            "cuotas_adicionales": 0.0,      # Sin cuotas en este caso
+            "municipalidad": 8500.0,        # Gastos municipales
+            "comision_inmo": 6000.0,        # 150000 * 4%
+            "pago_prop": 144000.0           # 150000 - 6000
+        }
+        
+        # Verificar campos clave
+        precio_base = float(contrato["precio_original"])
+        municipalidad = float(contrato["municipalidad"])
+        cuotas = 0.0  # "Pagado" en mes posterior al inicial
+        
+        precio_final = precio_base + cuotas + municipalidad
+        self.assertEqual(precio_final, registro_esperado["precio_mes_actual"])
+        
+        from app import calcular_comision
+        comision = calcular_comision(contrato["comision_inmo"], precio_base)
+        self.assertEqual(comision, registro_esperado["comision_inmo"])
+        
+        pago_prop = precio_base - comision
+        self.assertEqual(pago_prop, registro_esperado["pago_prop"])
+
     def test_calculo_cuotas_completo(self):
         """Test cálculo completo de cuotas (comisión + depósito)"""
         # Casa Palermo: comisión "2 cuotas", depósito "3 cuotas"
@@ -151,10 +264,61 @@ class TestIntegrationFlow(unittest.TestCase):
         self.assertEqual(comision, 5000, "Comisión inmobiliaria debe ser 5,000")
         self.assertEqual(pago_prop, 95000, "Pago al propietario debe ser 95,000")
     
+    def test_manejo_campos_faltantes_con_municipalidad(self):
+        """Test manejo de municipalidad cuando faltan otros campos"""
+        # Casa Incompleta - tiene municipalidad pero faltan otros campos
+        contrato = CONTRATOS_TEST_DATA[4]
+        campos_requeridos = [
+            "precio_original", "fecha_inicio_contrato", "duracion_meses",
+            "actualizacion", "indice", "comision_inmo"
+        ]
+        
+        fila = pd.Series(contrato)
+        campos_faltantes = []
+        
+        for campo in campos_requeridos:
+            if campo not in fila or pd.isna(fila[campo]) or str(fila[campo]).strip() == "":
+                campos_faltantes.append(campo)
+        
+        # Debe detectar campos faltantes
+        self.assertGreater(len(campos_faltantes), 0,
+                         "Debe detectar campos faltantes")
+        
+        # Pero municipalidad debe estar presente
+        self.assertIn("municipalidad", contrato,
+                      "Municipalidad debe existir en el contrato")
+        self.assertEqual(float(contrato["municipalidad"]), 5000.0,
+                        "Municipalidad debe ser 5000")
+        
+        # En este caso, debe crear registro con municipalidad pero otros campos en blanco
+        if campos_faltantes:
+            municipalidad_valor = fila.get("municipalidad", "") if fila.get("municipalidad") else ""
+            
+            registro_resultado = {
+                "nombre_inmueble": contrato.get("nombre_inmueble", ""),
+                "precio_mes_actual": "",
+                "precio_base": "",
+                "cuotas_adicionales": "",
+                "municipalidad": municipalidad_valor,  # Debe preservar municipalidad
+                "comision_inmo": "",
+                "pago_prop": "",
+                "actualizacion": "NO"
+            }
+            
+            # Verificar que municipalidad se preserva
+            self.assertEqual(registro_resultado["municipalidad"], 5000.0,
+                           "Municipalidad debe preservarse aunque falten otros campos")
+            
+            # Pero otros campos calculados deben estar en blanco
+            self.assertEqual(registro_resultado["precio_mes_actual"], "",
+                           "Precio final debe estar en blanco")
+            self.assertEqual(registro_resultado["precio_base"], "",
+                           "Precio base debe estar en blanco")
+
     def test_manejo_campos_faltantes(self):
         """Test manejo de contrato con campos faltantes"""
         # Casa Incompleta - tiene campos vacíos
-        contrato = CONTRATOS_TEST_DATA[3]
+        contrato = CONTRATOS_TEST_DATA[4]
         campos_requeridos = [
             "precio_original", "fecha_inicio_contrato", "duracion_meses",
             "actualizacion", "indice", "comision_inmo"
