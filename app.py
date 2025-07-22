@@ -58,7 +58,7 @@ TOKEN_PICKLE = "token.pickle"
 warnings.filterwarnings("ignore", category=InsecureRequestWarning)
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.WARNING,
     format="%(levelname)s: %(message)s"
 )
 
@@ -109,8 +109,6 @@ def traer_factor_icl(fecha_inicio: dt.date, fecha_hasta: dt.date) -> float:
         raise ValueError("No se encontraron datos de ICL para el rango dado.")
     valor_inicio = data[-1]["valor"]  # El primer valor cronológico es el último del array
     valor_final = data[0]["valor"]    # El último valor cronológico es el primero del array
-    logging.info(f"[ICL] valor_inicio: {valor_inicio}, valor_final: {valor_final}")
-    logging.info(f"Factor [ICL] {valor_final/valor_inicio}")
     return float(valor_final) / float(valor_inicio)
 
 
@@ -229,7 +227,7 @@ def main() -> None:
         
         # Si faltan campos requeridos, crear registro con campos calculados en blanco
         if campos_faltantes:
-            logging.warning(f"Fila {fila.get('nombre_inmueble', 'N/A')}: faltan campos {campos_faltantes}. Se creará registro con campos calculados en blanco.")
+            logging.warning(f"[REGISTRO INCOMPLETO] Propiedad: {fila.get('nombre_inmueble', 'N/A')}: Faltan campos obligatorios: {campos_faltantes}. Se creará registro con campos calculados en blanco.")
             registros.append({
                 "nombre_inmueble": fila.get("nombre_inmueble", ""),
                 "dir_inmueble": fila.get("dir_inmueble", ""),
@@ -252,13 +250,14 @@ def main() -> None:
         # ¿Sigue vigente el contrato?
         inicio = pd.to_datetime(fila["fecha_inicio_contrato"]).date()
         if (fecha_ref - inicio).days // 30 >= fila["duracion_meses"]:
+            logging.warning(f"[CONTRATO FINALIZADO] Propiedad: {fila['nombre_inmueble']}: Contrato iniciado el {inicio} con duración {fila['duracion_meses']} meses ya finalizó. Omitiendo registro.")
             continue  # contrato finalizado ⇒ omitir
 
         # Calcular meses desde inicio y ciclos completos
         try:
             freq_meses = {"trimestral": 3, "cuatrimestral": 4, "semestral": 6, "anual": 12}[fila["actualizacion"]]
         except KeyError:
-            logging.warning(f"Valor de actualización inválido para {fila['nombre_inmueble']}: {fila['actualizacion']}. Usando 'trimestral' como default.")
+            logging.warning(f"[VALOR INVÁLIDO] Propiedad: {fila['nombre_inmueble']}: Actualización inválida: '{fila['actualizacion']}'. Usando 'trimestral' como default.")
             freq_meses = 3  # Default a trimestral
             
         meses_desde_inicio = (y - inicio.year) * 12 + (m - inicio.month)
@@ -291,12 +290,7 @@ def main() -> None:
                     fecha_inicio_ult = inicio + relativedelta(months=(ciclos_cumplidos - 1) * freq_meses)
                     fecha_fin_ult = fecha_inicio_ult + relativedelta(months=freq_meses)
                     porc_actual = (traer_factor_icl(fecha_inicio_ult, fecha_fin_ult) - 1) * 100
-                    logging.info(
-                        f"Inicio último ciclo: {fecha_inicio_ult}, "
-                        f"Fin último ciclo: {fecha_fin_ult}, "
-                        f"Factor ICL: {traer_factor_icl(fecha_inicio_ult, fecha_fin_ult)}, "
-                        f"Porcentaje actual: {porc_actual}"
-                    )
+
                 else:
                     porc_actual = 0
             else:
@@ -304,14 +298,14 @@ def main() -> None:
                 factor_total = (1 + pct / 100) ** ciclos_cumplidos
                 porc_actual = pct if aplica_actualizacion == "SI" and ciclos_cumplidos > 0 else 0
         except (ValueError, AttributeError, KeyError) as e:
-            logging.warning(f"Error procesando índice para {fila['nombre_inmueble']}: {e}. Usando precio original.")
+            logging.warning(f"[ERROR ÍNDICE] Propiedad: {fila['nombre_inmueble']}: Error al procesar índice '{fila.get('indice', 'N/A')}': {str(e)}. Usando precio original.")
             factor_total = 1.0
             porc_actual = 0
 
         try:
             precio_actual = round(fila["precio_original"] * factor_total, 2)
         except (ValueError, TypeError) as e:
-            logging.warning(f"Error calculando precio actual para {fila['nombre_inmueble']}: {e}. Usando precio original.")
+            logging.warning(f"[ERROR CÁLCULO] Propiedad: {fila['nombre_inmueble']}: Error al calcular precio actualizado: {str(e)}. Usando precio original: {fila['precio_original']}.")
             precio_actual = float(fila["precio_original"]) if fila["precio_original"] else 0
         
         # Calcular cuotas adicionales (comisión al inquilino y depósito)
@@ -333,7 +327,7 @@ def main() -> None:
             comision = calcular_comision(fila["comision_inmo"], precio_actual)
             pago_prop = round(precio_actual - comision, 2)
         except (ValueError, TypeError) as e:
-            logging.warning(f"Error calculando comisión para {fila['nombre_inmueble']}: {e}. Usando valores por defecto.")
+            logging.warning(f"[ERROR COMISIÓN] Propiedad: {fila['nombre_inmueble']}: Error al calcular comisión con valor '{fila.get('comision_inmo', 'N/A')}': {str(e)}. Usando comisión=0 y pago al propietario=precio_actual.")
             comision = 0
             pago_prop = precio_actual
 
@@ -366,6 +360,12 @@ def main() -> None:
         })
 
     pagos = pd.DataFrame(registros)
+    
+    # Resumen de procesamiento
+    total_maestro = len(maestro)
+    total_procesados = len(pagos)
+    logging.warning(f"[RESUMEN] Total registros en maestro: {total_maestro}, Registros procesados: {total_procesados}, Registros omitidos: {total_maestro - total_procesados}")
+    
     # Escribir pagos en una nueva hoja de Google Sheets
     sheet_name = f"pagos_{args.mes.replace('-', '_')}"
     try:
