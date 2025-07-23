@@ -248,7 +248,16 @@ def main() -> None:
             continue
         
         # ¿Sigue vigente el contrato?
-        inicio = pd.to_datetime(fila["fecha_inicio_contrato"]).date()
+        fecha_inicio_raw = fila["fecha_inicio_contrato"]
+        if isinstance(fecha_inicio_raw, str):
+            fecha_inicio = fecha_inicio_raw.replace("_", "-")
+        else:
+            fecha_inicio = fecha_inicio_raw
+        try:
+            inicio = pd.to_datetime(fecha_inicio).date()
+        except Exception as e:
+            logging.warning(f"[FECHA INVÁLIDA] Propiedad: {fila.get('nombre_inmueble', 'N/A')}: Fecha inválida '{fecha_inicio}'. Error: {e}. Registro omitido.")
+            continue  # omitir registro con fecha inválida
         if (fecha_ref - inicio).days // 30 >= fila["duracion_meses"]:
             logging.warning(f"[CONTRATO FINALIZADO] Propiedad: {fila['nombre_inmueble']}: Contrato iniciado el {inicio} con duración {fila['duracion_meses']} meses ya finalizó. Omitiendo registro.")
             continue  # contrato finalizado ⇒ omitir
