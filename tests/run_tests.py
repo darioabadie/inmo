@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
 Script para ejecutar todos los tests de la aplicación inmobiliaria
+Tests reorganizados según tests_funcionales.md (Tests 1-110)
+Solo incluye los 8 archivos de tests reorganizados actuales
 """
 import unittest
 import sys
@@ -13,14 +15,38 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def run_all_tests():
     """Ejecuta todos los tests y muestra un reporte"""
     
-    print("=" * 60)
-    print("EJECUTANDO TESTS PARA APLICACIÓN INMOBILIARIA")
-    print("=" * 60)
+    print("=" * 70)
+    print("EJECUTANDO TESTS FUNCIONALES - SISTEMA INMOBILIARIO")
+    print("Tests reorganizados según tests_funcionales.md (110 tests)")
+    print("=" * 70)
     
-    # Descubrir y ejecutar todos los tests
+    # Orden específico de ejecución según categorías funcionales
+    test_modules = [
+        'test_validacion_datos',        # Tests 1-26: Validación de datos de entrada
+        'test_logica_contratos',        # Tests 27-40: Lógica de contratos  
+        'test_actualizaciones',         # Tests 41-52: Cálculos de actualización
+        'test_cuotas_adicionales',      # Tests 53-65: Cálculo de cuotas adicionales
+        'test_precios_finales',         # Tests 66-79: Precios finales y comisiones
+        'test_campos_informativos',     # Tests 80-91: Campos informativos
+        'test_casos_extremos',          # Tests 92-101: Casos extremos y manejo de errores
+        'test_integracion_completa',    # Tests 102-110: Integración y flujo completo
+    ]
+    
+    # Descubrir y ejecutar tests en orden
     loader = unittest.TestLoader()
-    start_dir = os.path.dirname(__file__)
-    suite = loader.discover(start_dir, pattern='test_*.py')
+    suite = unittest.TestSuite()
+    
+    # Cargar módulos en orden específico
+    for module_name in test_modules:
+        try:
+            module_suite = loader.loadTestsFromName(module_name)
+            suite.addTest(module_suite)
+            print(f"✓ Cargado: {module_name}")
+        except Exception as e:
+            print(f"✗ Error cargando {module_name}: {e}")
+    
+    print(f"\nTotal módulos cargados: {len(test_modules)}")
+    print("-" * 70)
     
     # Configurar el runner con verbosidad
     stream = StringIO()
@@ -39,9 +65,9 @@ def run_all_tests():
     print(output)
     
     # Resumen final
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 70)
     print("RESUMEN DE RESULTADOS")
-    print("=" * 60)
+    print("=" * 70)
     
     total_tests = result.testsRun
     failures = len(result.failures)
@@ -83,17 +109,20 @@ def run_specific_test_suite(test_name):
     """Ejecuta un conjunto específico de tests"""
     
     test_modules = {
-        'calculations': 'test_calculations.py',
-        'contract': 'test_contract_logic.py', 
-        'integration': 'test_integration.py',
-        'data': 'test_data.py',
-        # Nuevos tests del refactor
-        'fase1': 'test_fase1_logica_critica.py',
-        'fase2': 'test_fase2_logica_icl.py',
-        'sistema_completo': 'test_integracion_sistema_completo.py',
+        # Tests reorganizados por categoría
+        'validacion': 'test_validacion_datos.py',
+        'contratos': 'test_logica_contratos.py', 
+        'actualizaciones': 'test_actualizaciones.py',
+        'cuotas': 'test_cuotas_adicionales.py',
+        'precios': 'test_precios_finales.py',
+        'informativos': 'test_campos_informativos.py',
+        'extremos': 'test_casos_extremos.py',
+        'integracion': 'test_integracion_completa.py',
+        
         # Shortcuts para ejecutar grupos
-        'refactor': ['test_fase1_logica_critica.py', 'test_fase2_logica_icl.py', 'test_integracion_sistema_completo.py'],
-        'legacy': ['test_calculations.py', 'test_contract_logic.py', 'test_integration.py', 'test_data.py']
+        'basicos': ['test_validacion_datos.py', 'test_logica_contratos.py'],
+        'calculos': ['test_actualizaciones.py', 'test_cuotas_adicionales.py', 'test_precios_finales.py'],
+        'avanzados': ['test_campos_informativos.py', 'test_casos_extremos.py', 'test_integracion_completa.py']
     }
     
     if test_name not in test_modules:
