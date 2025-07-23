@@ -142,67 +142,29 @@ def main():
             logging.warning(f"[ERROR CÁLCULO] {e}")
             continue
 
-        # Calcular fecha y precio de última actualización (fuera del try)
-        # NOTA: Esta lógica será simplificada en Steps futuros del refactor
-        
-        # Campos corregidos según especificaciones técnicas
+        # Campos corregidos según especificaciones técnicas (Step 1.2)
         actualizacion_str = "SI" if aplica_actualizacion else "NO"
         porc_actual_output = porc_actual if aplica_actualizacion else ""
 
-        # Calcular fecha y precio de última actualización
-        if fecha_inicio_dt:
-            if freq_meses > 0 and meses_desde_inicio >= freq_meses:
-                ciclos_anteriores = (meses_desde_inicio // freq_meses)
-                meses_ult = freq_meses * (ciclos_anteriores - (0 if aplica_actualizacion else 1))
-                fecha_ultima_actual = fecha_inicio_dt + dt.timedelta(days=30 * meses_ult)
-                # Calcular precio de la última actualización
-                if contrato.indice.upper() == "ICL":
-                    fecha_ult = fecha_ultima_actual
-                    factor_ult = traer_factor_icl(fecha_inicio_dt, fecha_ult)
-                    precio_ultima_actual = round(contrato.precio_original * factor_ult, 2)
-                elif contrato.indice.upper() == "IPC":
-                    precio_ultima_actual = precio_ajustado(
-                        contrato.precio_original,
-                        contrato.actualizacion,
-                        contrato.indice,
-                        inflacion_df,
-                        fecha_ultima_actual,
-                        fecha_inicio_dt
-                    )
-                else:
-                    precio_ultima_actual = precio_ajustado(
-                        contrato.precio_original,
-                        contrato.actualizacion,
-                        contrato.indice,
-                        inflacion_df,
-                        fecha_ultima_actual,
-                        fecha_inicio_dt
-                    )
-            else:
-                fecha_ultima_actual = fecha_inicio_dt
-                precio_ultima_actual = contrato.precio_original
-        else:
-            fecha_ultima_actual = None
-            precio_ultima_actual = contrato.precio_original
-
         registros.append({
+            # Columnas de Identificación (según technical_specs.md)
             "nombre_inmueble": propiedad.nombre,
             "dir_inmueble": propiedad.direccion,
             "inquilino": propiedad.inquilino,
             "propietario": propiedad.propietario,
             "mes_actual": pago.mes,
-            "precio_mes_actual": precio_mes_actual,  # total que paga el inquilino (incluye municipalidad)
-            "precio_base": precio_base,  # base sin cuotas ni municipalidad
-            "cuotas_adicionales": cuotas_adicionales,  # monto de cuotas este mes
-            "municipalidad": municipalidad,  # gastos municipales
-            "comision_inmo": pago.comision_inmo,
-            "pago_prop": pago.pago_prop,
-            "actualizacion": actualizacion_str,
-            "porc_actual": porc_actual_output,
-            "meses_prox_actualizacion": meses_prox_actualizacion,
-            "meses_prox_renovacion": meses_prox_renovacion,
-            "fecha_ultima_actual": fecha_ultima_actual.strftime("%Y-%m-%d") if fecha_ultima_actual else "",
-            "precio_ultima_actual": precio_ultima_actual
+            
+            # Columnas Calculadas (orden según technical_specs.md)
+            "precio_mes_actual": precio_mes_actual,  # PRECIO TOTAL QUE PAGA EL INQUILINO
+            "precio_base": precio_base,  # Precio Base Actualizado
+            "cuotas_adicionales": cuotas_adicionales,  # Comisión y Depósito Fraccionados  
+            "municipalidad": municipalidad,  # Gastos Municipales
+            "comision_inmo": pago.comision_inmo,  # Comisión de Administración
+            "pago_prop": pago.pago_prop,  # Pago Neto al Propietario
+            "actualizacion": actualizacion_str,  # Indicador de Actualización (SI/NO)
+            "porc_actual": porc_actual_output,  # Porcentaje Aplicado Este Mes
+            "meses_prox_actualizacion": meses_prox_actualizacion,  # Meses Hasta Próxima Actualización
+            "meses_prox_renovacion": meses_prox_renovacion  # Meses Restantes del Contrato
         })
 
     # Escribir pagos en una nueva hoja de Google Sheets

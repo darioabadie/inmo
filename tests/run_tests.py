@@ -84,8 +84,16 @@ def run_specific_test_suite(test_name):
     
     test_modules = {
         'calculations': 'test_calculations.py',
-        'contract': 'test_contract_logic.py',
+        'contract': 'test_contract_logic.py', 
         'integration': 'test_integration.py',
+        'data': 'test_data.py',
+        # Nuevos tests del refactor
+        'fase1': 'test_fase1_logica_critica.py',
+        'fase2': 'test_fase2_logica_icl.py',
+        'sistema_completo': 'test_integracion_sistema_completo.py',
+        # Shortcuts para ejecutar grupos
+        'refactor': ['test_fase1_logica_critica.py', 'test_fase2_logica_icl.py', 'test_integracion_sistema_completo.py'],
+        'legacy': ['test_calculations.py', 'test_contract_logic.py', 'test_integration.py', 'test_data.py']
     }
     
     if test_name not in test_modules:
@@ -96,14 +104,26 @@ def run_specific_test_suite(test_name):
     print(f"Ejecutando tests: {test_name}")
     print("-" * 40)
     
-    # Cargar y ejecutar el módulo específico
-    loader = unittest.TestLoader()
-    suite = loader.loadTestsFromName(f'tests.{test_modules[test_name][:-3]}')
+    # Manejar múltiples módulos
+    test_files = test_modules[test_name]
+    if isinstance(test_files, str):
+        test_files = [test_files]
     
-    runner = unittest.TextTestRunner(verbosity=2)
-    result = runner.run(suite)
+    all_results = []
     
-    return result.wasSuccessful()
+    for test_file in test_files:
+        print(f"\n📋 Ejecutando: {test_file}")
+        print("-" * 30)
+        
+        # Cargar y ejecutar el módulo específico
+        loader = unittest.TestLoader()
+        suite = loader.loadTestsFromName(f'tests.{test_file[:-3]}')
+        
+        runner = unittest.TextTestRunner(verbosity=2)
+        result = runner.run(suite)
+        all_results.append(result.wasSuccessful())
+    
+    return all(all_results)
 
 
 if __name__ == '__main__':
