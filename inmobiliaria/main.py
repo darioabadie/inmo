@@ -16,7 +16,7 @@ from .models import Propiedad, Contrato, Pago
 from . import utils
 from .services.google_sheets import get_gspread_client
 from .services.inflation import traer_inflacion
-from .services.calculations import precio_ajustado, calcular_comision, calcular_cuotas_adicionales, traer_factor_icl
+from .services.calculations import precio_ajustado, calcular_comision, calcular_cuotas_adicionales, traer_factor_icl, calcular_precio_base_acumulado
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -82,74 +82,54 @@ def main():
                 except Exception:
                     fecha_inicio_dt = None
 
-            # Calcular meses desde inicio
-            meses_desde_inicio = (fecha_ref.year - fecha_inicio_dt.year) * 12 + (fecha_ref.month - fecha_inicio_dt.month) if fecha_inicio_dt else 0
+            # Si no hay fecha de inicio válida, omitir registro
+            if not fecha_inicio_dt:
+                total_omitidos += 1
+                logging.warning(f"[FECHA INVÁLIDA] Fecha inicio inválida para {propiedad.nombre}")
+                continue
 
-            # Frecuencia de actualización en meses
+            # Calcular meses desde inicio
+            meses_desde_inicio = (fecha_ref.year - fecha_inicio_dt.year) * 12 + (fecha_ref.month - fecha_inicio_dt.month)
+
+            # Validar si el contrato está vencido (Step 1.3)
+            if meses_desde_inicio >= contrato.duracion_meses:
+                total_omitidos += 1
+                logging.warning(f"[CONTRATO FINALIZADO] Contrato vencido para {propiedad.nombre}")
+                continue
+
+            # Usar la nueva función para calcular precio base acumulado
+            precio_base, porc_actual, aplica_actualizacion = calcular_precio_base_acumulado(
+                contrato.precio_original,
+                contrato.actualizacion,
+                contrato.indice,
+                inflacion_df,
+                fecha_inicio_dt,
+                fecha_ref
+            )
+
+            # Calcular meses hasta próxima actualización y renovación
             freq_map = {"trimestral": 3, "cuatrimestral": 4, "semestral": 6, "anual": 12}
             freq_meses = freq_map.get(contrato.actualizacion.lower(), 3)
-
-            ciclos_cumplidos = meses_desde_inicio // freq_meses
             resto = meses_desde_inicio % freq_meses
-            aplica_actualizacion = resto == 0 and ciclos_cumplidos > 0
-
-            # Calcular meses hasta próxima actualización
+            
             if aplica_actualizacion:
                 meses_prox_actualizacion = freq_meses
             else:
                 meses_prox_actualizacion = freq_meses - resto
 
-            # Calcular meses hasta renovación
             meses_prox_renovacion = max(0, contrato.duracion_meses - meses_desde_inicio)
 
-            # Calcular precio_base (solo se ajusta en mes de actualización)
-            if aplica_actualizacion:
-                if contrato.indice.upper() == "ICL":
-                    if fecha_inicio_dt:
-                        factor = traer_factor_icl(fecha_inicio_dt, fecha_ref)
-                        precio_actual = round(contrato.precio_original * factor, 2)
-                        porc_actual = round((factor - 1) * 100, 2)
-                    else:
-                        precio_actual = contrato.precio_original
-                        porc_actual = 0
-                elif contrato.indice.upper() == "IPC":
-                    precio_actual = precio_ajustado(
-                        contrato.precio_original,
-                        contrato.actualizacion,
-                        contrato.indice,
-                        inflacion_df,
-                        fecha_ref,
-                        fecha_inicio_dt
-                    )
-                    porc_actual = 0
-                else:
-                    precio_actual = precio_ajustado(
-                        contrato.precio_original,
-                        contrato.actualizacion,
-                        contrato.indice,
-                        inflacion_df,
-                        fecha_ref,
-                        fecha_inicio_dt
-                    )
-                    try:
-                        pct = float(contrato.indice.strip().replace("%", "").replace(",", "."))
-                        porc_actual = pct
-                    except Exception:
-                        porc_actual = 0
-            else:
-                precio_actual = contrato.precio_original
-                porc_actual = 0
-
-            comision = calcular_comision(contrato.comision_inmo, precio_actual)
+            # Calcular otros valores
+            comision = calcular_comision(contrato.comision_inmo, precio_base)
             cuotas_adicionales = calcular_cuotas_adicionales(
-                precio_actual,
+                precio_base,
                 contrato.comision or "Pagado",
                 contrato.deposito or "Pagado",
                 meses_desde_inicio + 1  # mes_actual 1-based
             )
             municipalidad = float(fila.get("municipalidad", 0)) if fila.get("municipalidad") else 0
-            pago_prop = round(precio_actual - comision, 2)
-            precio_mes_actual = precio_actual + cuotas_adicionales + municipalidad
+            pago_prop = round(precio_base - comision, 2)
+            precio_mes_actual = precio_base + cuotas_adicionales + municipalidad
             pago = Pago(
                 mes=args.mes,
                 precio_mes_actual=precio_mes_actual,
@@ -163,18 +143,11 @@ def main():
             continue
 
         # Calcular fecha y precio de última actualización (fuera del try)
-    # ...existing code...
-        # Calcular valor decimal para actualizacion
-        if aplica_actualizacion:
-            if contrato.indice:
-                try:
-                    valor_decimal = float(str(porc_actual).replace("%", "").replace(",", ".")) / 100 if isinstance(porc_actual, (int, float)) else 0
-                except Exception:
-                    valor_decimal = 0
-            else:
-                valor_decimal = 0
-        else:
-            valor_decimal = 0
+        # NOTA: Esta lógica será simplificada en Steps futuros del refactor
+        
+        # Campos corregidos según especificaciones técnicas
+        actualizacion_str = "SI" if aplica_actualizacion else "NO"
+        porc_actual_output = porc_actual if aplica_actualizacion else ""
 
         # Calcular fecha y precio de última actualización
         if fecha_inicio_dt:
@@ -219,12 +192,13 @@ def main():
             "propietario": propiedad.propietario,
             "mes_actual": pago.mes,
             "precio_mes_actual": precio_mes_actual,  # total que paga el inquilino (incluye municipalidad)
-            "precio_base": precio_actual,  # base sin cuotas ni municipalidad
+            "precio_base": precio_base,  # base sin cuotas ni municipalidad
             "cuotas_adicionales": cuotas_adicionales,  # monto de cuotas este mes
             "municipalidad": municipalidad,  # gastos municipales
             "comision_inmo": pago.comision_inmo,
             "pago_prop": pago.pago_prop,
-            "actualizacion": valor_decimal,
+            "actualizacion": actualizacion_str,
+            "porc_actual": porc_actual_output,
             "meses_prox_actualizacion": meses_prox_actualizacion,
             "meses_prox_renovacion": meses_prox_renovacion,
             "fecha_ultima_actual": fecha_ultima_actual.strftime("%Y-%m-%d") if fecha_ultima_actual else "",
