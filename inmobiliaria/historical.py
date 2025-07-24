@@ -143,7 +143,8 @@ def generar_meses_faltantes(propiedad: Propiedad,
                            fecha_limite: dt.date,
                            precio_base_inicial: float,
                            mes_inicial: str,
-                           inflacion_df) -> List[Dict]:
+                           inflacion_df,
+                           municipalidad: float = 0.0) -> List[Dict]:
     """
     Genera todos los registros mensuales faltantes desde mes_inicial hasta fecha_limite.
     """
@@ -199,8 +200,6 @@ def generar_meses_faltantes(propiedad: Propiedad,
             meses_desde_inicio + 1  # mes_actual 1-based
         )
         
-        # Municipalidad siempre 0 para histórico (no está en maestro original)
-        municipalidad = 0
         pago_prop = round(precio_base_actual - comision, 2)
         precio_mes_actual = precio_base_actual + cuotas_adicionales + municipalidad
         
@@ -299,6 +298,9 @@ def main():
             continue
         
         try:
+            # Leer municipalidad de la fila del maestro
+            municipalidad = float(fila.get("municipalidad", 0)) if fila.get("municipalidad") else 0
+            
             # Determinar punto de partida
             if propiedad.nombre in historico_existente:
                 # Continuar desde donde se quedó
@@ -319,7 +321,7 @@ def main():
             
             # Generar meses faltantes
             nuevos_registros = generar_meses_faltantes(
-                propiedad, contrato, fecha_limite, precio_base_inicial, mes_inicial, inflacion_df
+                propiedad, contrato, fecha_limite, precio_base_inicial, mes_inicial, inflacion_df, municipalidad
             )
             
             todos_los_registros.extend(nuevos_registros)
