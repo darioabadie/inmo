@@ -4,11 +4,19 @@ Esta aplicación automatiza la generación mensual de reportes de pagos para pro
 
 ## ¿Qué hace la app?
 
+### Módulo Principal (`main.py`)
 - Lee la información de contratos de alquiler desde una hoja de Google Sheets.
-- Calcula el monto a pagar cada mes para cada propiedad, considerando actualizaciones por inflación (IPC) o porcentajes fijos.
+- Calcula el monto a pagar cada mes para cada propiedad, considerando actualizaciones por inflación (IPC), ICL o porcentajes fijos.
 - Calcula la comisión de la inmobiliaria y el pago neto al propietario.
 - Genera una hoja nueva en el mismo Google Sheets con el detalle de pagos del mes seleccionado.
 - Permite elegir el mes de cálculo (por defecto, el mes actual).
+
+### Módulo Historial (`historical.py`)
+- Genera el historial completo de pagos desde el inicio de cada contrato hasta una fecha límite.
+- Cada actualización se basa en el último `precio_base` registrado, permitiendo ajustes manuales.
+- Funciona de manera incremental: solo agrega meses nuevos al historial existente.
+- Respeta modificaciones manuales en el historial para cálculos futuros.
+- Aplica actualizaciones reales de ICL, IPC o porcentajes según corresponda en cada período.
 
 ## Requisitos
 
@@ -42,14 +50,29 @@ Para que la app pueda acceder y modificar tu Google Sheets, debes autenticarte c
 
 ## Uso
 
-Ejecuta el script con:
+### Generación de Pagos Mensuales
+
+Ejecuta el script principal con:
 
 ```sh
-python app.py --mes AAAA-MM
+python -m inmobiliaria.main --mes AAAA-MM
 ```
 
 - El parámetro `--mes` es opcional. Si no lo indicas, se usará el mes actual.
 - El script generará una nueva hoja en el Google Sheets con el nombre `pagos_AAAA_MM` (por ejemplo, `pagos_2025_06`).
+
+### Generación de Historial Completo
+
+Para generar el historial completo de todos los pagos desde el inicio de cada contrato:
+
+```sh
+python -m inmobiliaria.historical --hasta AAAA-MM
+```
+
+- El parámetro `--hasta` es opcional. Si no lo indicas, se usará el mes actual como límite.
+- El script generará/actualizará una hoja llamada `historico` con todos los registros mensuales.
+- **Funcionalidad incremental**: Si ya existe un historial, solo agregará los meses faltantes.
+- **Respeta ajustes manuales**: Si modificas un `precio_base` en el historial, los cálculos futuros respetarán ese valor.
 
 ## Estructura esperada de la hoja "maestro"
 
@@ -69,6 +92,7 @@ La hoja de Google Sheets debe tener una hoja llamada `administracion` con las si
 - `comision_inmo` (porcentaje, ej: "5%")
 - `comision` ("Pagado", "2 cuotas", "3 cuotas")
 - `deposito` ("Pagado", "2 cuotas", "3 cuotas")
+- `municipalidad` (monto fijo mensual, opcional)
 
 ### Funcionalidad de Comisión y Depósito en Cuotas
 
@@ -86,6 +110,8 @@ Las columnas `comision` y `deposito` permiten configurar el pago fraccionado de 
 
 ## Salida
 
+### Reportes Mensuales
+
 Se crea una hoja nueva en el mismo Google Sheets con las siguientes columnas:
 
 - `nombre_inmueble`
@@ -96,12 +122,32 @@ Se crea una hoja nueva en el mismo Google Sheets con las siguientes columnas:
 - `precio_mes_actual` (precio total que paga el inquilino, incluyendo cuotas)
 - `precio_base` (precio base del alquiler sin cuotas)
 - `cuotas_adicionales` (monto de cuotas de comisión/depósito este mes)
+- `municipalidad` (gastos municipales mensuales)
 - `comision_inmo` (comisión de administración al propietario)
 - `pago_prop` (pago neto al propietario)
 - `actualizacion` ("SI" si corresponde actualización ese mes)
 - `porc_actual` (porcentaje aplicado en la actualización, vacío si no hubo)
 - `meses_prox_actualizacion` (meses hasta la próxima actualización de precio)
 - `meses_prox_renovacion` (meses restantes del contrato)
+
+### Historial Completo
+
+El módulo `historical.py` genera una hoja llamada `historico` con la misma estructura que los reportes mensuales, pero conteniendo **todos los meses** desde el inicio de cada contrato hasta la fecha límite especificada.
+
+#### Características del Historial:
+
+- **Incremental**: Solo calcula meses nuevos, preservando el historial existente
+- **Ajustes manuales**: Si modificas un `precio_base` en el historial, respeta ese valor para cálculos futuros
+- **Actualizaciones reales**: Aplica ICL, IPC o porcentajes fijos según corresponda en cada período
+- **Trazabilidad completa**: Permite auditar todos los cambios de precio mes a mes
+
+#### Casos de Uso del Historial:
+
+1. **Setup inicial**: Generar todo el historial desde cero para contratos existentes
+2. **Actualización mensual**: Agregar solo los meses nuevos al historial
+3. **Corrección de precios**: Ajustar manualmente un precio_base y recalcular desde ese punto
+4. **Auditoría y reportes**: Tener visibilidad completa de la evolución de precios
+5. **Análisis de tendencias**: Estudiar el impacto de la inflación/ICL en el tiempo
 
 ## Tests
 
@@ -151,11 +197,26 @@ Los tests garantizan que:
 
 ## Notas
 
-- Si la hoja de pagos para ese mes ya existe, será sobrescrita.
+### Archivos Generados
+- **Reportes mensuales**: Si la hoja de pagos para ese mes ya existe, será sobrescrita.
+- **Historial**: La hoja "historico" se actualiza incrementalmente, preservando registros existentes.
+
+### Autenticación
 - El archivo `token.pickle` guarda tu sesión autorizada y puede ser eliminado si necesitas reautenticarte.
-- **Diferencia entre comisiones**:
-  - `comision`: Comisión que paga el **inquilino** (equivale a 1 mes de alquiler)
-  - `comision_inmo`: Porcentaje de comisión de administración que se descuenta del pago al **propietario**
+
+### Tipos de Comisiones
+- **`comision`**: Comisión que paga el **inquilino** (equivale a 1 mes de alquiler)
+- **`comision_inmo`**: Porcentaje de comisión de administración que se descuenta del pago al **propietario**
+
+### Actualización de Precios
+- **ICL**: Consulta automáticamente la API del BCRA para obtener factores reales
+- **IPC**: Usa datos de inflación histórica
+- **Porcentaje fijo**: Aplica el porcentaje especificado (ej: "10%", "7.5%")
+
+### Ajustes Manuales en Historial
+- Puedes modificar cualquier `precio_base` en la hoja "historico"
+- Los cálculos futuros respetarán ese valor ajustado
+- Útil para reflejar negociaciones o ajustes contractuales especiales
 
 ---
 
