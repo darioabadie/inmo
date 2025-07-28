@@ -103,14 +103,19 @@ La hoja de Google Sheets debe tener una hoja llamada `administracion` con las si
 Las columnas `comision` y `deposito` permiten configurar el pago fraccionado de estos conceptos:
 
 - **"Pagado"**: La comisión/depósito ya fue pagado por separado, no se suma al alquiler mensual
-- **"2 cuotas"**: Se divide el monto (equivalente a 1 mes de alquiler) en 2 partes iguales y se suma a los primeros 2 meses
-- **"3 cuotas"**: Se divide el monto (equivalente a 1 mes de alquiler) en 3 partes iguales y se suma a los primeros 3 meses
+- **"2 cuotas"**: Se divide el monto en 2 partes iguales y se suma a los primeros 2 meses
+- **"3 cuotas"**: Se divide el monto en 3 partes iguales y se suma a los primeros 3 meses
 
-**Ejemplo**: Si el alquiler base es $100,000, comisión "2 cuotas" y depósito "3 cuotas":
-- Mes 1: $100,000 + $50,000 (comisión) + $33,333 (depósito) = $183,333
-- Mes 2: $100,000 + $50,000 (comisión) + $33,333 (depósito) = $183,333  
-- Mes 3: $100,000 + $0 (comisión) + $33,334 (depósito) = $133,334
-- Mes 4 en adelante: $100,000
+**NUEVO - Interés en Comisión Fraccionada**:
+- **Comisión en 2 cuotas**: Se aplica 10% de interés → Total: precio_base × 1.10
+- **Comisión en 3 cuotas**: Se aplica 20% de interés → Total: precio_base × 1.20
+- **Depósito**: Se mantiene sin interés
+
+**Ejemplo**: Si el alquiler base es $300,000, comisión "3 cuotas" y depósito "2 cuotas":
+- Mes 1: $300,000 + $120,000 (comisión c/interés) + $150,000 (depósito) = $570,000
+- Mes 2: $300,000 + $120,000 (comisión c/interés) + $150,000 (depósito) = $570,000  
+- Mes 3: $300,000 + $120,000 (comisión c/interés) + $0 (depósito) = $420,000
+- Mes 4 en adelante: $300,000
 
 ### Servicios Fijos (Municipalidad, Luz, Gas, Expensas)
 

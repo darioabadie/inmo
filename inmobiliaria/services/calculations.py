@@ -267,12 +267,19 @@ def calcular_cuotas_adicionales(precio_base: float,
                                deposito: str, 
                                mes_actual: int) -> float:
     monto_adicional = 0.0
+    
+    # Comisión con interés según número de cuotas
     if comision_inquilino == "2 cuotas" and mes_actual <= 2:
-        monto_adicional += precio_base / 2
+        # 10% de interés para 2 cuotas
+        monto_adicional += (precio_base * 1.10) / 2
     elif comision_inquilino == "3 cuotas" and mes_actual <= 3:
-        monto_adicional += precio_base / 3
+        # 20% de interés para 3 cuotas
+        monto_adicional += (precio_base * 1.20) / 3
+    
+    # Depósito sin cambios (sin interés)
     if deposito == "2 cuotas" and mes_actual <= 2:
         monto_adicional += precio_base / 2
     elif deposito == "3 cuotas" and mes_actual <= 3:
         monto_adicional += precio_base / 3
+    
     return round(monto_adicional, 2)

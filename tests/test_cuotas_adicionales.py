@@ -28,16 +28,16 @@ class TestComisionInquilino(unittest.TestCase):
                            f"Mes {mes_actual}: Con comisión 'Pagado' no debe sumar nada")
     
     def test_comision_2_cuotas_meses_1_y_2(self):
-        """Test 54: Con comisión "2 cuotas", debe sumarse precio_base/2 en los meses 1 y 2"""
+        """Test 54: Con comisión "2 cuotas", debe sumarse (precio_base * 1.10)/2 en los meses 1 y 2"""
         precio_base = 100000.0
         comision = "2 cuotas"
         deposito = "Pagado"
         
         for mes_actual in [1, 2]:
             cuotas = calcular_cuotas_adicionales(precio_base, comision, deposito, mes_actual)
-            expected = precio_base / 2  # 50,000
-            self.assertEqual(cuotas, expected, 
-                           f"Mes {mes_actual}: Con comisión '2 cuotas' debe sumar {expected}")
+            expected = (precio_base * 1.10) / 2  # 55,000 con 10% interés
+            self.assertAlmostEqual(cuotas, expected, places=2,
+                           msg=f"Mes {mes_actual}: Con comisión '2 cuotas' debe sumar {expected} (con 10% interés)")
     
     def test_comision_2_cuotas_mes_3_en_adelante(self):
         """Test 55: Con comisión "2 cuotas", NO debe sumarse nada desde el mes 3 en adelante"""
@@ -51,16 +51,16 @@ class TestComisionInquilino(unittest.TestCase):
                            f"Mes {mes_actual}: Con comisión '2 cuotas' NO debe sumar nada")
     
     def test_comision_3_cuotas_meses_1_2_y_3(self):
-        """Test 56: Con comisión "3 cuotas", debe sumarse precio_base/3 en los meses 1, 2 y 3"""
+        """Test 56: Con comisión "3 cuotas", debe sumarse (precio_base * 1.20)/3 en los meses 1, 2 y 3"""
         precio_base = 120000.0
         comision = "3 cuotas"
         deposito = "Pagado"
         
         for mes_actual in [1, 2, 3]:
             cuotas = calcular_cuotas_adicionales(precio_base, comision, deposito, mes_actual)
-            expected = precio_base / 3  # 40,000
+            expected = (precio_base * 1.20) / 3  # 48,000 con 20% interés
             self.assertEqual(cuotas, expected, 
-                           f"Mes {mes_actual}: Con comisión '3 cuotas' debe sumar {expected}")
+                           f"Mes {mes_actual}: Con comisión '3 cuotas' debe sumar {expected} (con 20% interés)")
     
     def test_comision_3_cuotas_mes_4_en_adelante(self):
         """Test 57: Con comisión "3 cuotas", NO debe sumarse nada desde el mes 4 en adelante"""
@@ -117,17 +117,17 @@ class TestCombinacionComisionDeposito(unittest.TestCase):
     """Tests 61-63: Combinación comisión + depósito"""
     
     def test_comision_2_cuotas_deposito_3_cuotas_mes_1(self):
-        """Test 61: Con comisión "2 cuotas" y depósito "3 cuotas", en el mes 1 debe sumarse precio_base/2 + precio_base/3"""
+        """Test 61: Con comisión "2 cuotas" y depósito "3 cuotas", en el mes 1 debe sumarse (precio_base * 1.10)/2 + precio_base/3"""
         precio_base = 120000.0  # Número que sea divisible por 2 y 3
         comision = "2 cuotas"
         deposito = "3 cuotas"
         mes_actual = 1
         
         cuotas = calcular_cuotas_adicionales(precio_base, comision, deposito, mes_actual)
-        expected = precio_base / 2 + precio_base / 3  # 60,000 + 40,000 = 100,000
+        expected = (precio_base * 1.10) / 2 + precio_base / 3  # 66,000 + 40,000 = 106,000
         
         self.assertEqual(cuotas, expected, 
-                        f"Mes 1: Debe sumar comisión ({precio_base/2}) + depósito ({precio_base/3}) = {expected}")
+                        f"Mes 1: Debe sumar comisión con interés ({(precio_base * 1.10)/2}) + depósito ({precio_base/3}) = {expected}")
     
     def test_comision_2_cuotas_deposito_3_cuotas_mes_3(self):
         """Test 62: Con comisión "2 cuotas" y depósito "3 cuotas", en el mes 3 debe sumarse solo precio_base/3"""
@@ -137,7 +137,7 @@ class TestCombinacionComisionDeposito(unittest.TestCase):
         mes_actual = 3
         
         cuotas = calcular_cuotas_adicionales(precio_base, comision, deposito, mes_actual)
-        expected = precio_base / 3  # Solo depósito: 40,000
+        expected = precio_base / 3  # Solo depósito: 40,000 (sin interés)
         
         self.assertEqual(cuotas, expected, 
                         f"Mes 3: Comisión ya terminó, solo debe sumar depósito ({expected})")
@@ -167,9 +167,9 @@ class TestInteraccionConActualizaciones(unittest.TestCase):
         deposito = "3 cuotas"
         mes_actual = 1
         
-        # Las cuotas deben calcularse sobre el precio actualizado
+        # Las cuotas deben calcularse sobre el precio actualizado con interés para comisión
         cuotas = calcular_cuotas_adicionales(precio_base_actualizado, comision, deposito, mes_actual)
-        expected = precio_base_actualizado / 2 + precio_base_actualizado / 3  # 55,000 + 36,667
+        expected = (precio_base_actualizado * 1.10) / 2 + precio_base_actualizado / 3  # 60,500 + 36,667
         
         self.assertAlmostEqual(cuotas, expected, places=2,
                               msg="Las cuotas deben calcularse sobre precio actualizado, no original")
@@ -188,9 +188,9 @@ class TestInteraccionConActualizaciones(unittest.TestCase):
         comision = "2 cuotas"  # Solo meses 1 y 2
         deposito = "3 cuotas"  # Meses 1, 2 y 3
         
-        # Mes 1: cuotas sobre precio original
+        # Mes 1: cuotas sobre precio original con interés para comisión
         cuotas_mes_1 = calcular_cuotas_adicionales(precio_base_mes_1_2, comision, deposito, 1)
-        expected_mes_1 = precio_base_mes_1_2 / 2 + precio_base_mes_1_2 / 3  # 50,000 + 33,333
+        expected_mes_1 = (precio_base_mes_1_2 * 1.10) / 2 + precio_base_mes_1_2 / 3  # 55,000 + 33,333
         self.assertAlmostEqual(cuotas_mes_1, expected_mes_1, places=2)
         
         # Mes 3: solo depósito, pero sobre precio actualizado

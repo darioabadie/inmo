@@ -90,18 +90,22 @@ precio_base = precio_original * factor_total
 - Tanto comisión como depósito equivalen a **1 mes de alquiler base**
 - Se fraccionan según configuración: "2 cuotas", "3 cuotas" o "Pagado"
 - Solo se suman en los primeros meses del contrato
+- **NUEVO**: La comisión aplica interés según el número de cuotas:
+  - **2 cuotas**: 10% de interés
+  - **3 cuotas**: 20% de interés
+- El depósito se mantiene sin interés
 
 ```python
 def calcular_cuotas_adicionales(precio_base, comision_inquilino, deposito, mes_actual):
     monto_adicional = 0.0
     
-    # Comisión fraccionada
+    # Comisión fraccionada con interés
     if comision_inquilino == "2 cuotas" and mes_actual <= 2:
-        monto_adicional += precio_base / 2
+        monto_adicional += (precio_base * 1.10) / 2  # 10% interés
     elif comision_inquilino == "3 cuotas" and mes_actual <= 3:
-        monto_adicional += precio_base / 3
+        monto_adicional += (precio_base * 1.20) / 3  # 20% interés
     
-    # Depósito fraccionado
+    # Depósito fraccionado sin interés
     if deposito == "2 cuotas" and mes_actual <= 2:
         monto_adicional += precio_base / 2
     elif deposito == "3 cuotas" and mes_actual <= 3:
@@ -111,11 +115,11 @@ def calcular_cuotas_adicionales(precio_base, comision_inquilino, deposito, mes_a
 ```
 
 **Ejemplo**:
-- precio_base: $121,000
-- comision: "2 cuotas", deposito: "3 cuotas"
-- Mes 1: $121,000/2 + $121,000/3 = $60,500 + $40,333 = **$100,833**
-- Mes 2: $121,000/2 + $121,000/3 = $60,500 + $40,333 = **$100,833**
-- Mes 3: $0 + $121,000/3 = $0 + $40,334 = **$40,334**
+- precio_base: $300,000
+- comision: "3 cuotas", deposito: "2 cuotas"
+- Mes 1: $300,000 × 1.20 ÷ 3 + $300,000 ÷ 2 = $120,000 + $150,000 = **$270,000**
+- Mes 2: $300,000 × 1.20 ÷ 3 + $300,000 ÷ 2 = $120,000 + $150,000 = **$270,000**  
+- Mes 3: $300,000 × 1.20 ÷ 3 + $0 = $120,000 + $0 = **$120,000**
 - Mes 4+: **$0**
 
 ### 4. **municipalidad** - Gastos Municipales
