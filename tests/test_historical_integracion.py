@@ -491,8 +491,9 @@ class TestHistoricalIntegracion(unittest.TestCase):
             # Verificar headers
             headers_esperados = [
                 'nombre_inmueble', 'dir_inmueble', 'inquilino', 'propietario',
-                'mes_actual', 'precio_mes_actual', 'precio_base', 'cuotas_adicionales',
-                'municipalidad', 'comision_inmo', 'pago_prop', 'actualizacion',
+                'mes_actual', 'precio_final', 'precio_original', 'precio_descuento', 'descuento',
+                'cuotas_adicionales', 'municipalidad', 'luz', 'gas', 'expensas',
+                'comision_inmo', 'pago_prop', 'actualizacion',
                 'porc_actual', 'meses_prox_actualizacion', 'meses_prox_renovacion'
             ]
             

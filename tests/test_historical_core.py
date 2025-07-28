@@ -158,14 +158,14 @@ class TestHistoricalCore(unittest.TestCase):
             
             registros = generar_meses_faltantes(
                 self.propiedad_test, self.contrato_icl, fecha_limite,
-                100000.0, "", self.inflacion_df, municipalidad
+                100000.0, "", self.inflacion_df, municipalidad, 0.0, 0.0, 0.0, 0.0
             )
         
         # Verificar que municipalidad se suma al precio final
         self.assertEqual(registros[0]['municipalidad'], 5000.0)
-        self.assertEqual(registros[0]['precio_base'], 100000.0)
-        # precio_mes_actual = precio_base + cuotas_adicionales + municipalidad
-        self.assertGreaterEqual(registros[0]['precio_mes_actual'], 105000.0)
+        self.assertEqual(registros[0]['precio_original'], 100000.0)
+        # precio_final = precio_descuento + cuotas_adicionales + municipalidad + luz + gas + expensas
+        self.assertGreaterEqual(registros[0]['precio_final'], 105000.0)
 
     # Test 117: Cálculo de cuotas adicionales en primeros meses
     def test_117_cuotas_adicionales_primeros_meses(self):
@@ -377,7 +377,7 @@ class TestHistoricalCore(unittest.TestCase):
             
             registros = generar_meses_faltantes(
                 self.propiedad_test, self.contrato_icl, fecha_limite,
-                100000.0, "", self.inflacion_df, 1000.0
+                100000.0, "", self.inflacion_df, 1000.0, 0.0, 0.0, 0.0, 0.0
             )
         
         registro = registros[0]
@@ -385,8 +385,9 @@ class TestHistoricalCore(unittest.TestCase):
         # Verificar que todos los campos requeridos están presentes
         campos_requeridos = [
             'nombre_inmueble', 'dir_inmueble', 'inquilino', 'propietario',
-            'mes_actual', 'precio_mes_actual', 'precio_base', 'cuotas_adicionales',
-            'municipalidad', 'comision_inmo', 'pago_prop', 'actualizacion',
+            'mes_actual', 'precio_final', 'precio_original', 'precio_descuento', 'descuento',
+            'cuotas_adicionales', 'municipalidad', 'luz', 'gas', 'expensas',
+            'comision_inmo', 'pago_prop', 'actualizacion',
             'porc_actual', 'meses_prox_actualizacion', 'meses_prox_renovacion'
         ]
         

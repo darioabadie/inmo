@@ -37,12 +37,12 @@ def _parse_args() -> argparse.Namespace:
 
 def leer_historico_existente(sh) -> Dict[str, Dict]:
     """
-    Lee el sheet 'historico' existente y retorna el último precio_base por propiedad.
+    Lee el sheet 'historico' existente y retorna el último precio_original por propiedad.
     
     Returns:
         Dict con estructura: {nombre_inmueble: {
             'ultimo_mes': 'YYYY-MM',
-            'ultimo_precio_base': float,
+            'ultimo_precio_base': float,  # Mantiene nombre por compatibilidad
             'registros_existentes': List[Dict]
         }}
     """
@@ -55,7 +55,8 @@ def leer_historico_existente(sh) -> Dict[str, Dict]:
         for registro in registros_existentes:
             nombre = registro.get("nombre_inmueble", "")
             mes = registro.get("mes_actual", "")
-            precio_base = float(registro.get("precio_base", 0))
+            # Intentar leer precio_original primero, si no existe usar precio_base (compatibilidad)
+            precio_base = float(registro.get("precio_original", 0)) or float(registro.get("precio_base", 0))
             
             if nombre not in historico_por_propiedad:
                 historico_por_propiedad[nombre] = {
@@ -149,7 +150,9 @@ def generar_meses_faltantes(propiedad: Propiedad,
                            inflacion_df,
                            municipalidad: float = 0.0,
                            luz: float = 0.0,
-                           gas: float = 0.0) -> List[Dict]:
+                           gas: float = 0.0,
+                           expensas: float = 0.0,
+                           descuento_porcentaje: float = 0.0) -> List[Dict]:
     """
     Genera todos los registros mensuales faltantes desde mes_inicial hasta fecha_limite.
     """
@@ -200,16 +203,21 @@ def generar_meses_faltantes(propiedad: Propiedad,
         meses_prox_renovacion = max(0, contrato.duracion_meses - meses_desde_inicio)
         
         # Calcular otros valores
-        comision = calcular_comision(contrato.comision_inmo, precio_base_actual)
+        # precio_base_actual es el precio original (sin descuento)
+        # precio_descuento es el precio con descuento aplicado
+        factor_descuento = 1 - (descuento_porcentaje / 100)
+        precio_descuento = round(precio_base_actual * factor_descuento, 2)
+        
+        comision = calcular_comision(contrato.comision_inmo, precio_descuento)
         cuotas_adicionales = calcular_cuotas_adicionales(
-            precio_base_actual,
+            precio_descuento,
             contrato.comision or "Pagado",
             contrato.deposito or "Pagado",
             meses_desde_inicio + 1  # mes_actual 1-based
         )
         
-        pago_prop = round(precio_base_actual - comision, 2)
-        precio_mes_actual = precio_base_actual + cuotas_adicionales + municipalidad + luz + gas
+        pago_prop = round(precio_descuento - comision, 2)
+        precio_final = precio_descuento + cuotas_adicionales + municipalidad + luz + gas + expensas
         
         # Crear registro
         mes_str = f"{fecha_actual.year}-{fecha_actual.month:02d}"
@@ -225,12 +233,15 @@ def generar_meses_faltantes(propiedad: Propiedad,
             "mes_actual": mes_str,
             
             # Columnas Calculadas
-            "precio_mes_actual": precio_mes_actual,
-            "precio_base": precio_base_actual,
+            "precio_final": precio_final,
+            "precio_original": precio_base_actual,
+            "precio_descuento": precio_descuento,
+            "descuento": f"{descuento_porcentaje:.1f}%",
             "cuotas_adicionales": cuotas_adicionales,
             "municipalidad": municipalidad,
             "luz": luz,
             "gas": gas,
+            "expensas": expensas,
             "comision_inmo": comision,
             "pago_prop": pago_prop,
             "actualizacion": actualizacion_str,
@@ -308,10 +319,18 @@ def main():
             continue
         
         try:
-            # Leer municipalidad, luz y gas de la fila del maestro
+            # Leer municipalidad, luz, gas, expensas y descuento de la fila del maestro
             municipalidad = float(fila.get("municipalidad", 0)) if fila.get("municipalidad") else 0
             luz = float(fila.get("luz", 0)) if fila.get("luz") else 0
             gas = float(fila.get("gas", 0)) if fila.get("gas") else 0
+            expensas = float(fila.get("expensas", 0)) if fila.get("expensas") else 0
+            
+            # Leer descuento (viene como "15%", "0%", etc.)
+            descuento_str = str(fila.get("descuento", "0%"))
+            try:
+                descuento_porcentaje = float(descuento_str.replace('%', '').replace(',', '.').strip())
+            except:
+                descuento_porcentaje = 0.0
             
             # Determinar punto de partida
             if propiedad.nombre in historico_existente:
@@ -333,7 +352,8 @@ def main():
             
             # Generar meses faltantes
             nuevos_registros = generar_meses_faltantes(
-                propiedad, contrato, fecha_limite, precio_base_inicial, mes_inicial, inflacion_df, municipalidad, luz, gas
+                propiedad, contrato, fecha_limite, precio_base_inicial, mes_inicial, inflacion_df, 
+                municipalidad, luz, gas, expensas, descuento_porcentaje
             )
             
             todos_los_registros.extend(nuevos_registros)
@@ -352,8 +372,8 @@ def main():
     # Escribir en hoja "historico"
     sheet_name = "historico"
     try:
-        # Intentar crear la hoja si no existe
-        sh.add_worksheet(title=sheet_name, rows=len(todos_los_registros)+10, cols=17)
+        # Intentar crear la hoja si no existe (ahora necesitamos 19 columnas)
+        sh.add_worksheet(title=sheet_name, rows=len(todos_los_registros)+10, cols=19)
         logging.warning(f"[SHEET] Creada nueva hoja '{sheet_name}'")
     except Exception:
         logging.warning(f"[SHEET] Hoja '{sheet_name}' ya existe, se sobrescribirá")

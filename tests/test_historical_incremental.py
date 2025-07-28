@@ -96,7 +96,7 @@ class TestHistoricalIncremental(unittest.TestCase):
             # Simular continuación desde marzo (último mes registrado)
             nuevos_registros = generar_meses_faltantes(
                 self.propiedad_test, self.contrato_test, fecha_limite,
-                110000.0, "2024-03", self.inflacion_df, 0.0
+                110000.0, "2024-03", self.inflacion_df, 0.0, 0.0, 0.0, 0.0, 0.0
             )
         
         # Debería generar abril, mayo, junio (3 meses)
@@ -105,9 +105,9 @@ class TestHistoricalIncremental(unittest.TestCase):
         self.assertEqual(nuevos_registros[1]['mes_actual'], "2024-05")
         self.assertEqual(nuevos_registros[2]['mes_actual'], "2024-06")
         
-        # Precio base debería partir de 110000 (último registrado)
+        # Precio original debería partir de 110000 (último registrado)
         for registro in nuevos_registros:
-            self.assertEqual(registro['precio_base'], 110000.0)
+            self.assertEqual(registro['precio_original'], 110000.0)
 
     # Test 137: Preservación de registros existentes
     def test_137_preservacion_registros_existentes(self):
@@ -219,12 +219,12 @@ class TestHistoricalIncremental(unittest.TestCase):
             
             registros = generar_meses_faltantes(
                 self.propiedad_test, self.contrato_test, fecha_limite,
-                precio_ajustado_manual, "2024-03", self.inflacion_df, 0.0
+                precio_ajustado_manual, "2024-03", self.inflacion_df, 0.0, 0.0, 0.0, 0.0, 0.0
             )
         
         # Los nuevos cálculos deberían partir del precio ajustado manualmente
         for registro in registros:
-            self.assertEqual(registro['precio_base'], 125000.0)
+            self.assertEqual(registro['precio_original'], 125000.0)
 
     # Test 142: Generación de historial para contratos parcialmente vencidos
     def test_142_contratos_parcialmente_vencidos(self):
@@ -274,16 +274,16 @@ class TestHistoricalIncremental(unittest.TestCase):
         with patch('inmobiliaria.historical.calcular_actualizacion_mes', side_effect=mock_actualizacion_side_effect):
             registros = generar_meses_faltantes(
                 self.propiedad_test, self.contrato_test, fecha_limite,
-                100000.0, "", self.inflacion_df, 0.0
+                100000.0, "", self.inflacion_df, 0.0, 0.0, 0.0, 0.0, 0.0
             )
         
         # Verificar evolución de precios:
         # Mes 1-3: 100000, Mes 4: 110000 (primera actualización en meses_desde_inicio = 3)
         # Mes 5-6: 110000, Mes 7: 121000 (segunda actualización en meses_desde_inicio = 6)
-        self.assertEqual(registros[0]['precio_base'], 100000.0)  # Enero (meses_desde_inicio = 0)
-        self.assertEqual(registros[2]['precio_base'], 100000.0)  # Marzo (meses_desde_inicio = 2)
-        self.assertEqual(registros[3]['precio_base'], 110000.0)  # Abril (meses_desde_inicio = 3, actualización)
-        self.assertEqual(registros[6]['precio_base'], 121000.0)  # Julio (meses_desde_inicio = 6, segunda actualización)
+        self.assertEqual(registros[0]['precio_original'], 100000.0)  # Enero (meses_desde_inicio = 0)
+        self.assertEqual(registros[2]['precio_original'], 100000.0)  # Marzo (meses_desde_inicio = 2)
+        self.assertEqual(registros[3]['precio_original'], 110000.0)  # Abril (meses_desde_inicio = 3, actualización)
+        self.assertEqual(registros[6]['precio_original'], 121000.0)  # Julio (meses_desde_inicio = 6, segunda actualización)
 
     # Test 144: Ordenamiento cronológico de registros
     def test_144_ordenamiento_cronologico(self):

@@ -13,13 +13,15 @@ Campos obligatorios:
 - precio_original, fecha_inicio_contrato, duracion_meses
 - actualizacion, indice, comision_inmo
 - comision, deposito (opcional: default "Pagado")
-- municipalidad (opcional: default 0)
+- municipalidad, luz, gas, expensas (opcional: default 0)
+- descuento (opcional: default "0%")
 ```
 
-### Output: Hoja "pagos_YYYY_MM" 
+### Output: Hoja "historico" 
 ```
 Columnas calculadas:
-- precio_mes_actual, precio_base, cuotas_adicionales, municipalidad
+- precio_final, precio_original, precio_descuento, descuento
+- cuotas_adicionales, municipalidad, luz, gas, expensas
 - comision_inmo, pago_prop
 - actualizacion, porc_actual
 - meses_prox_actualizacion, meses_prox_renovacion
