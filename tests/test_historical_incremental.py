@@ -50,7 +50,8 @@ class TestHistoricalIncremental(unittest.TestCase):
             'ipc_mensual': [2.0, 1.5, 1.8, 2.2, 1.9, 2.1]
         })
         
-        # Histórico simulado existente
+        # Histórico simulado existente - manteniendo marzo para compatibilidad con tests existentes
+        # Solo el histórico debe reflejar los hechos pasados, no la lógica futura
         self.historico_existente = {
             'Casa Incremental': {
                 'ultimo_mes': '2024-03',
@@ -262,7 +263,8 @@ class TestHistoricalIncremental(unittest.TestCase):
         
         # Simular actualizaciones trimestrales secuenciales
         def mock_actualizacion_side_effect(precio_base, contrato, inflacion_df, fecha_mes, meses_desde_inicio, fecha_inicio):
-            # Aplicar 10% cada 3 meses
+            # Aplicar 10% cada 3 meses - lógica según especificaciones técnicas
+            # Para trimestral: actualizar cuando meses_desde_inicio = 3, 6, 9... (meses 4, 7, 10... del contrato)
             if meses_desde_inicio > 0 and meses_desde_inicio % 3 == 0:
                 nuevo_precio = precio_base * 1.1
                 return (round(nuevo_precio, 2), "10.00%", True)
@@ -276,11 +278,12 @@ class TestHistoricalIncremental(unittest.TestCase):
             )
         
         # Verificar evolución de precios:
-        # Mes 1-2: 100000, Mes 3: 110000 (primera actualización)
-        # Mes 4-5: 110000, Mes 6: 121000 (segunda actualización)
-        self.assertEqual(registros[0]['precio_base'], 100000.0)  # Enero
-        self.assertEqual(registros[2]['precio_base'], 110000.0)  # Marzo (actualización)
-        self.assertEqual(registros[5]['precio_base'], 121000.0)  # Junio (segunda actualización)
+        # Mes 1-3: 100000, Mes 4: 110000 (primera actualización en meses_desde_inicio = 3)
+        # Mes 5-6: 110000, Mes 7: 121000 (segunda actualización en meses_desde_inicio = 6)
+        self.assertEqual(registros[0]['precio_base'], 100000.0)  # Enero (meses_desde_inicio = 0)
+        self.assertEqual(registros[2]['precio_base'], 100000.0)  # Marzo (meses_desde_inicio = 2)
+        self.assertEqual(registros[3]['precio_base'], 110000.0)  # Abril (meses_desde_inicio = 3, actualización)
+        self.assertEqual(registros[6]['precio_base'], 121000.0)  # Julio (meses_desde_inicio = 6, segunda actualización)
 
     # Test 144: Ordenamiento cronológico de registros
     def test_144_ordenamiento_cronologico(self):

@@ -93,6 +93,8 @@ La hoja de Google Sheets debe tener una hoja llamada `administracion` con las si
 - `comision` ("Pagado", "2 cuotas", "3 cuotas")
 - `deposito` ("Pagado", "2 cuotas", "3 cuotas")
 - `municipalidad` (monto fijo mensual, opcional)
+- `luz` (monto fijo mensual de servicio de luz, opcional)
+- `gas` (monto fijo mensual de servicio de gas, opcional)
 
 ### Funcionalidad de Comisión y Depósito en Cuotas
 
@@ -107,6 +109,17 @@ Las columnas `comision` y `deposito` permiten configurar el pago fraccionado de 
 - Mes 2: $100,000 + $50,000 (comisión) + $33,333 (depósito) = $183,333  
 - Mes 3: $100,000 + $0 (comisión) + $33,334 (depósito) = $133,334
 - Mes 4 en adelante: $100,000
+
+### Servicios Fijos (Municipalidad, Luz, Gas)
+
+Los campos `municipalidad`, `luz` y `gas` representan montos fijos mensuales que se suman al precio total:
+
+- **Características**: Son montos fijos que NO se actualizan con inflación/ICL
+- **Aplicación**: Se suman directamente al precio final cada mes
+- **Comisión**: NO se aplica comisión inmobiliaria sobre estos conceptos
+- **Ejemplo**: Con precio_base $100,000, municipalidad $5,000, luz $3,000, gas $2,000:
+  - Precio total: $100,000 + $5,000 + $3,000 + $2,000 = $110,000
+  - Si hay actualización del 10%: precio_base pasa a $110,000, pero servicios siguen siendo $10,000
 
 ## Salida
 
@@ -123,6 +136,8 @@ Se crea una hoja nueva en el mismo Google Sheets con las siguientes columnas:
 - `precio_base` (precio base del alquiler sin cuotas)
 - `cuotas_adicionales` (monto de cuotas de comisión/depósito este mes)
 - `municipalidad` (gastos municipales mensuales)
+- `luz` (servicio de luz mensual)
+- `gas` (servicio de gas mensual)
 - `comision_inmo` (comisión de administración al propietario)
 - `pago_prop` (pago neto al propietario)
 - `actualizacion` ("SI" si corresponde actualización ese mes)
@@ -212,6 +227,17 @@ Los tests garantizan que:
 - **ICL**: Consulta automáticamente la API del BCRA para obtener factores reales
 - **IPC**: Usa datos de inflación histórica
 - **Porcentaje fijo**: Aplica el porcentaje especificado (ej: "10%", "7.5%")
+
+#### Secuencia de Actualizaciones
+
+Las actualizaciones de precio siguen esta secuencia según la frecuencia configurada:
+
+- **Trimestral**: Actualizaciones en los meses 3, 6, 9, 12, 15, 18... del contrato
+- **Cuatrimestral**: Actualizaciones en los meses 4, 8, 12, 16, 20, 24... del contrato  
+- **Semestral**: Actualizaciones en los meses 6, 12, 18, 24, 30, 36... del contrato
+- **Anual**: Actualizaciones en los meses 12, 24, 36, 48... del contrato
+
+**Ejemplo trimestral**: Un contrato que inicia en enero tendrá actualizaciones en marzo (mes 3), junio (mes 6), septiembre (mes 9), etc.
 
 ### Ajustes Manuales en Historial
 - Puedes modificar cualquier `precio_base` en la hoja "historico"

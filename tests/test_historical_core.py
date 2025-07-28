@@ -225,11 +225,12 @@ class TestHistoricalCore(unittest.TestCase):
         fecha_limite = dt.date(2024, 3, 1)
         
         with patch('inmobiliaria.historical.calcular_actualizacion_mes') as mock_calc:
-            # Mes 1: sin actualización, Mes 2: sin actualización, Mes 3: con actualización
+            # Mes 1: sin actualización, Mes 2: sin actualización, Mes 3: sin actualización
+            # La primera actualización trimestral debe ser en el mes 4 (meses_desde_inicio = 3)
             mock_calc.side_effect = [
-                (100000.0, "", False),    # Mes 1
-                (100000.0, "", False),    # Mes 2  
-                (110000.0, "10%", True)   # Mes 3 (actualización trimestral)
+                (100000.0, "", False),    # Mes 1 (meses_desde_inicio = 0)
+                (100000.0, "", False),    # Mes 2 (meses_desde_inicio = 1)
+                (100000.0, "", False)     # Mes 3 (meses_desde_inicio = 2)
             ]
             
             registros = generar_meses_faltantes(
@@ -237,14 +238,14 @@ class TestHistoricalCore(unittest.TestCase):
                 100000.0, "", self.inflacion_df, 0.0
             )
         
-        # Mes 1: faltan 2 meses para actualización
-        self.assertEqual(registros[0]['meses_prox_actualizacion'], 2)
+        # Mes 1: faltan 3 meses para actualización (próxima en mes 4)
+        self.assertEqual(registros[0]['meses_prox_actualizacion'], 3)
         
-        # Mes 2: falta 1 mes para actualización
-        self.assertEqual(registros[1]['meses_prox_actualizacion'], 1)
+        # Mes 2: faltan 2 meses para actualización (próxima en mes 4)
+        self.assertEqual(registros[1]['meses_prox_actualizacion'], 2)
         
-        # Mes 3: acaba de actualizar, faltan 3 meses para próxima
-        self.assertEqual(registros[2]['meses_prox_actualizacion'], 3)
+        # Mes 3: falta 1 mes para actualización (próxima en mes 4)
+        self.assertEqual(registros[2]['meses_prox_actualizacion'], 1)
 
     # Test 120: Lectura de histórico vacío
     def test_120_lectura_historico_vacio(self):

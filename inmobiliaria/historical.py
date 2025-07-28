@@ -95,6 +95,9 @@ def calcular_actualizacion_mes(precio_base_anterior: float,
     freq_meses = freq_map.get(contrato.actualizacion.lower(), 3)
     
     # Verificar si corresponde actualización este mes
+    # Para trimestral: actualizar cuando meses_desde_inicio sea 3, 6, 9, 12...
+    # (que corresponde a los meses 4, 7, 10, 13... del contrato)
+    # meses_desde_inicio = 0 (mes 1), 1 (mes 2), 2 (mes 3), 3 (mes 4 - primera actualización), etc.
     aplica_actualizacion = (meses_desde_inicio > 0 and meses_desde_inicio % freq_meses == 0)
     
     if not aplica_actualizacion:
@@ -144,7 +147,9 @@ def generar_meses_faltantes(propiedad: Propiedad,
                            precio_base_inicial: float,
                            mes_inicial: str,
                            inflacion_df,
-                           municipalidad: float = 0.0) -> List[Dict]:
+                           municipalidad: float = 0.0,
+                           luz: float = 0.0,
+                           gas: float = 0.0) -> List[Dict]:
     """
     Genera todos los registros mensuales faltantes desde mes_inicial hasta fecha_limite.
     """
@@ -182,12 +187,15 @@ def generar_meses_faltantes(propiedad: Propiedad,
         # Calcular resto de valores
         freq_map = {"trimestral": 3, "cuatrimestral": 4, "semestral": 6, "anual": 12}
         freq_meses = freq_map.get(contrato.actualizacion.lower(), 3)
-        resto = meses_desde_inicio % freq_meses
         
         if aplica_actualizacion:
             meses_prox_actualizacion = freq_meses
         else:
-            meses_prox_actualizacion = freq_meses - resto
+            # Calcular cuántos meses faltan para la próxima actualización
+            # Para un contrato trimestral: actualizaciones cuando meses_desde_inicio = 3, 6, 9, etc.
+            # (meses 4, 7, 10... del contrato)
+            proximo_mes_actualizacion = ((meses_desde_inicio // freq_meses) + 1) * freq_meses
+            meses_prox_actualizacion = proximo_mes_actualizacion - meses_desde_inicio
         
         meses_prox_renovacion = max(0, contrato.duracion_meses - meses_desde_inicio)
         
@@ -201,7 +209,7 @@ def generar_meses_faltantes(propiedad: Propiedad,
         )
         
         pago_prop = round(precio_base_actual - comision, 2)
-        precio_mes_actual = precio_base_actual + cuotas_adicionales + municipalidad
+        precio_mes_actual = precio_base_actual + cuotas_adicionales + municipalidad + luz + gas
         
         # Crear registro
         mes_str = f"{fecha_actual.year}-{fecha_actual.month:02d}"
@@ -221,6 +229,8 @@ def generar_meses_faltantes(propiedad: Propiedad,
             "precio_base": precio_base_actual,
             "cuotas_adicionales": cuotas_adicionales,
             "municipalidad": municipalidad,
+            "luz": luz,
+            "gas": gas,
             "comision_inmo": comision,
             "pago_prop": pago_prop,
             "actualizacion": actualizacion_str,
@@ -298,8 +308,10 @@ def main():
             continue
         
         try:
-            # Leer municipalidad de la fila del maestro
+            # Leer municipalidad, luz y gas de la fila del maestro
             municipalidad = float(fila.get("municipalidad", 0)) if fila.get("municipalidad") else 0
+            luz = float(fila.get("luz", 0)) if fila.get("luz") else 0
+            gas = float(fila.get("gas", 0)) if fila.get("gas") else 0
             
             # Determinar punto de partida
             if propiedad.nombre in historico_existente:
@@ -321,7 +333,7 @@ def main():
             
             # Generar meses faltantes
             nuevos_registros = generar_meses_faltantes(
-                propiedad, contrato, fecha_limite, precio_base_inicial, mes_inicial, inflacion_df, municipalidad
+                propiedad, contrato, fecha_limite, precio_base_inicial, mes_inicial, inflacion_df, municipalidad, luz, gas
             )
             
             todos_los_registros.extend(nuevos_registros)
@@ -341,7 +353,7 @@ def main():
     sheet_name = "historico"
     try:
         # Intentar crear la hoja si no existe
-        sh.add_worksheet(title=sheet_name, rows=len(todos_los_registros)+10, cols=15)
+        sh.add_worksheet(title=sheet_name, rows=len(todos_los_registros)+10, cols=17)
         logging.warning(f"[SHEET] Creada nueva hoja '{sheet_name}'")
     except Exception:
         logging.warning(f"[SHEET] Hoja '{sheet_name}' ya existe, se sobrescribirá")

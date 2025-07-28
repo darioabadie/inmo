@@ -74,15 +74,23 @@ class TestHistoricalIntegracion(unittest.TestCase):
         mock_worksheet_maestro = Mock()
         mock_worksheet_maestro.get_all_records.return_value = self.maestro_datos
         
-        # Simular que no existe hoja histórico
-        mock_sheet.worksheet.side_effect = [
-            mock_worksheet_maestro,  # Primera llamada: maestro
-            Exception("Worksheet not found")  # Segunda llamada: histórico (no existe)
-        ]
-        
         mock_worksheet_historico = Mock()
+        
+        # Configurar worksheet() para manejar múltiples llamadas
+        historico_call_count = [0]  # Usar lista para mutabilidad
+        
+        def worksheet_side_effect(name):
+            if name == "maestro":
+                return mock_worksheet_maestro
+            elif name == "historico":
+                historico_call_count[0] += 1
+                if historico_call_count[0] == 1:
+                    raise Exception("Worksheet not found")
+                return mock_worksheet_historico
+            return mock_worksheet_maestro
+        
+        mock_sheet.worksheet.side_effect = worksheet_side_effect
         mock_sheet.add_worksheet.return_value = mock_worksheet_historico
-        mock_sheet.worksheet.return_value = mock_worksheet_historico  # Para la escritura final
         
         mock_gc = Mock()
         mock_gc.open_by_key.return_value = mock_sheet
@@ -245,14 +253,22 @@ class TestHistoricalIntegracion(unittest.TestCase):
         mock_worksheet_maestro.get_all_records.return_value = maestro_multiple
         
         mock_worksheet_historico = Mock()
-        mock_worksheet_historico.get_all_records.side_effect = Exception("No histórico")
         
-        mock_sheet.worksheet.side_effect = [
-            mock_worksheet_maestro,
-            Exception("No histórico")
-        ]
+        # Configurar worksheet() para manejar múltiples llamadas
+        historico_call_count = [0]
+        
+        def worksheet_side_effect(name):
+            if name == "maestro":
+                return mock_worksheet_maestro
+            elif name == "historico":
+                historico_call_count[0] += 1
+                if historico_call_count[0] == 1:
+                    raise Exception("No histórico")
+                return mock_worksheet_historico
+            return mock_worksheet_maestro
+        
+        mock_sheet.worksheet.side_effect = worksheet_side_effect
         mock_sheet.add_worksheet.return_value = mock_worksheet_historico
-        mock_sheet.worksheet.return_value = mock_worksheet_historico
         
         mock_gc = Mock()
         mock_gc.open_by_key.return_value = mock_sheet
@@ -386,12 +402,21 @@ class TestHistoricalIntegracion(unittest.TestCase):
         
         mock_worksheet_historico = Mock()
         
-        mock_sheet.worksheet.side_effect = [
-            mock_worksheet_maestro,
-            Exception("No histórico")
-        ]
+        # Configurar worksheet() para manejar múltiples llamadas
+        historico_call_count = [0]
+        
+        def worksheet_side_effect(name):
+            if name == "maestro":
+                return mock_worksheet_maestro
+            elif name == "historico":
+                historico_call_count[0] += 1
+                if historico_call_count[0] == 1:
+                    raise Exception("No histórico")
+                return mock_worksheet_historico
+            return mock_worksheet_maestro
+        
+        mock_sheet.worksheet.side_effect = worksheet_side_effect
         mock_sheet.add_worksheet.return_value = mock_worksheet_historico
-        mock_sheet.worksheet.return_value = mock_worksheet_historico
         
         mock_gc = Mock()
         mock_gc.open_by_key.return_value = mock_sheet
@@ -431,12 +456,21 @@ class TestHistoricalIntegracion(unittest.TestCase):
         
         mock_worksheet_historico = Mock()
         
-        mock_sheet.worksheet.side_effect = [
-            mock_worksheet_maestro,
-            Exception("No histórico")
-        ]
+        # Configurar worksheet() para manejar múltiples llamadas
+        historico_call_count = [0]
+        
+        def worksheet_side_effect(name):
+            if name == "maestro":
+                return mock_worksheet_maestro
+            elif name == "historico":
+                historico_call_count[0] += 1
+                if historico_call_count[0] == 1:
+                    raise Exception("No histórico")
+                return mock_worksheet_historico
+            return mock_worksheet_maestro
+        
+        mock_sheet.worksheet.side_effect = worksheet_side_effect
         mock_sheet.add_worksheet.return_value = mock_worksheet_historico
-        mock_sheet.worksheet.return_value = mock_worksheet_historico
         
         mock_gc = Mock()
         mock_gc.open_by_key.return_value = mock_sheet
@@ -500,12 +534,21 @@ class TestHistoricalIntegracion(unittest.TestCase):
         
         mock_worksheet_historico = Mock()
         
-        mock_sheet.worksheet.side_effect = [
-            mock_worksheet_maestro,
-            Exception("No histórico")
-        ]
+        # Configurar worksheet() para manejar múltiples llamadas
+        historico_call_count = [0]
+        
+        def worksheet_side_effect(name):
+            if name == "maestro":
+                return mock_worksheet_maestro
+            elif name == "historico":
+                historico_call_count[0] += 1
+                if historico_call_count[0] == 1:
+                    raise Exception("No histórico")
+                return mock_worksheet_historico
+            return mock_worksheet_maestro
+        
+        mock_sheet.worksheet.side_effect = worksheet_side_effect
         mock_sheet.add_worksheet.return_value = mock_worksheet_historico
-        mock_sheet.worksheet.return_value = mock_worksheet_historico
         
         mock_gc = Mock()
         mock_gc.open_by_key.return_value = mock_sheet
@@ -656,12 +699,22 @@ class TestHistoricalIntegracion(unittest.TestCase):
         mock_worksheet_maestro.get_all_records.return_value = [self.maestro_datos[0]]
         
         mock_worksheet_historico = Mock()
-        mock_sheet.worksheet.side_effect = [
-            mock_worksheet_maestro,
-            Exception("No histórico")
-        ]
+        
+        # Configurar worksheet() para manejar múltiples llamadas
+        historico_call_count = [0]
+        
+        def worksheet_side_effect(name):
+            if name == "maestro":
+                return mock_worksheet_maestro
+            elif name == "historico":
+                historico_call_count[0] += 1
+                if historico_call_count[0] == 1:
+                    raise Exception("No histórico")
+                return mock_worksheet_historico
+            return mock_worksheet_maestro
+        
+        mock_sheet.worksheet.side_effect = worksheet_side_effect
         mock_sheet.add_worksheet.return_value = mock_worksheet_historico
-        mock_sheet.worksheet.return_value = mock_worksheet_historico
         
         mock_gc = Mock()
         mock_gc.open_by_key.return_value = mock_sheet
@@ -743,18 +796,18 @@ class TestHistoricalIntegracion(unittest.TestCase):
         mock_worksheet_historico = Mock()
         mock_worksheet_historico.get_all_records.return_value = historico_parcial
         
-        mock_sheet.worksheet.side_effect = [
-            mock_worksheet_maestro,
-            mock_worksheet_historico
-        ]
+        # Configurar worksheet() para manejar múltiples llamadas
+        call_count = [0]
         
-        # Para escritura final
-        def final_worksheet(name):
-            if name == "historico":
+        def worksheet_side_effect(name):
+            call_count[0] += 1
+            if name == "maestro":
+                return mock_worksheet_maestro
+            elif name == "historico":
                 return mock_worksheet_historico
-            return Mock()
+            return mock_worksheet_maestro
         
-        mock_sheet.worksheet.side_effect = final_worksheet
+        mock_sheet.worksheet.side_effect = worksheet_side_effect
         
         mock_gc = Mock()
         mock_gc.open_by_key.return_value = mock_sheet
