@@ -18,7 +18,7 @@ from .models import Propiedad, Contrato, Pago
 from . import utils
 from .services.google_sheets import get_gspread_client
 from .services.inflation import traer_inflacion
-from .services.calculations import precio_ajustado, calcular_comision, calcular_cuotas_adicionales, traer_factor_icl
+from .services.calculations import precio_ajustado, calcular_comision, calcular_cuotas_adicionales, calcular_cuotas_detalladas, traer_factor_icl
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -209,12 +209,19 @@ def generar_meses_faltantes(propiedad: Propiedad,
         precio_descuento = round(precio_base_actual * factor_descuento, 2)
         
         comision = calcular_comision(contrato.comision_inmo, precio_descuento)
-        cuotas_adicionales = calcular_cuotas_adicionales(
+        
+        # Calcular cuotas adicionales con detalle
+        cuotas_detalle = calcular_cuotas_detalladas(
             precio_descuento,
             contrato.comision or "Pagado",
             contrato.deposito or "Pagado",
             meses_desde_inicio + 1  # mes_actual 1-based
         )
+        
+        cuotas_adicionales = float(cuotas_detalle['total_cuotas'])
+        cuotas_comision = float(cuotas_detalle['cuotas_comision'])
+        cuotas_deposito = float(cuotas_detalle['cuotas_deposito'])
+        detalle_cuotas = str(cuotas_detalle['detalle_descripcion'])
         
         pago_prop = round(precio_descuento - comision, 2)
         precio_final = precio_descuento + cuotas_adicionales + municipalidad + luz + gas + expensas
@@ -238,6 +245,9 @@ def generar_meses_faltantes(propiedad: Propiedad,
             "precio_descuento": precio_descuento,
             "descuento": f"{descuento_porcentaje:.1f}%",
             "cuotas_adicionales": cuotas_adicionales,
+            "cuotas_comision": cuotas_comision,
+            "cuotas_deposito": cuotas_deposito,
+            "detalle_cuotas": detalle_cuotas,
             "municipalidad": municipalidad,
             "luz": luz,
             "gas": gas,
@@ -372,8 +382,8 @@ def main():
     # Escribir en hoja "historico"
     sheet_name = "historico"
     try:
-        # Intentar crear la hoja si no existe (ahora necesitamos 19 columnas)
-        sh.add_worksheet(title=sheet_name, rows=len(todos_los_registros)+10, cols=19)
+        # Intentar crear la hoja si no existe (ahora necesitamos 22 columnas: 19 + 3 nuevas)
+        sh.add_worksheet(title=sheet_name, rows=len(todos_los_registros)+10, cols=22)
         logging.warning(f"[SHEET] Creada nueva hoja '{sheet_name}'")
     except Exception:
         logging.warning(f"[SHEET] Hoja '{sheet_name}' ya existe, se sobrescribirá")

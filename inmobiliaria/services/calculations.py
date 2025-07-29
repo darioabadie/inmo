@@ -3,6 +3,7 @@ import requests
 import datetime as dt
 import requests
 from dateutil.relativedelta import relativedelta
+from typing import Dict
 
 def traer_factor_icl(fecha_inicio: dt.date, fecha_hasta: dt.date) -> float:
     """
@@ -283,3 +284,49 @@ def calcular_cuotas_adicionales(precio_base: float,
         monto_adicional += precio_base / 3
     
     return round(monto_adicional, 2)
+
+
+from typing import Dict, Union
+
+
+def calcular_cuotas_detalladas(precio_base: float, 
+                              comision_inquilino: str, 
+                              deposito: str, 
+                              mes_actual: int) -> Dict[str, Union[float, str]]:
+    """
+    Calcula las cuotas adicionales con detalle separado de comisión y depósito.
+    
+    Returns:
+        Dict con 'cuotas_comision', 'cuotas_deposito', 'total_cuotas', 'detalle_descripcion'
+    """
+    cuotas_comision = 0.0
+    cuotas_deposito = 0.0
+    descripciones = []
+    
+    # Comisión con interés según número de cuotas
+    if comision_inquilino == "2 cuotas" and mes_actual <= 2:
+        # 10% de interés para 2 cuotas
+        cuotas_comision = (precio_base * 1.10) / 2
+        descripciones.append(f"Comisión inmobiliaria ({mes_actual}/2)")
+    elif comision_inquilino == "3 cuotas" and mes_actual <= 3:
+        # 20% de interés para 3 cuotas
+        cuotas_comision = (precio_base * 1.20) / 3
+        descripciones.append(f"Comisión inmobiliaria ({mes_actual}/3)")
+    
+    # Depósito sin interés
+    if deposito == "2 cuotas" and mes_actual <= 2:
+        cuotas_deposito = precio_base / 2
+        descripciones.append(f"Depósito en garantía ({mes_actual}/2)")
+    elif deposito == "3 cuotas" and mes_actual <= 3:
+        cuotas_deposito = precio_base / 3
+        descripciones.append(f"Depósito en garantía ({mes_actual}/3)")
+    
+    total_cuotas = cuotas_comision + cuotas_deposito
+    detalle_descripcion = " + ".join(descripciones) if descripciones else ""
+    
+    return {
+        'cuotas_comision': round(cuotas_comision, 2),
+        'cuotas_deposito': round(cuotas_deposito, 2),
+        'total_cuotas': round(total_cuotas, 2),
+        'detalle_descripcion': detalle_descripcion
+    }

@@ -133,8 +133,8 @@ class ReciboGenerator:
         
         Fórmula: precio_descuento - comision_inmo + luz + gas + municipalidad + expensas + cuotas_deposito
         
-        Los servicios adicionales van al propietario porque el inquilino los paga
-        pero son gastos de la propiedad que debe recibir el propietario.
+        Los servicios adicionales y el depósito van al propietario.
+        La comisión fraccionada va a la inmobiliaria.
         """
         precio_descuento = float(data.get('precio_descuento', 0))
         comision_inmo = float(data.get('comision_inmo', 0))
@@ -145,16 +145,10 @@ class ReciboGenerator:
         municipalidad = float(data.get('municipalidad', 0))
         expensas = float(data.get('expensas', 0))
         
-        # Cuotas adicionales: solo el depósito va al propietario
-        # (la comisión va a la inmobiliaria)
-        cuotas_adicionales = float(data.get('cuotas_adicionales', 0))
+        # Solo el depósito va al propietario (la comisión va a la inmobiliaria)
+        cuotas_deposito = float(data.get('cuotas_deposito', 0))
         
-        # Necesitaríamos separar comisión de depósito, pero como no tenemos
-        # esa información en el histórico, usamos el valor total de cuotas
-        # Esto debería ajustarse en el cálculo del histórico, pero por ahora
-        # asumimos que las cuotas van al propietario
-        
-        pago_total = precio_descuento - comision_inmo + luz + gas + municipalidad + expensas + cuotas_adicionales
+        pago_total = precio_descuento - comision_inmo + luz + gas + municipalidad + expensas + cuotas_deposito
         
         return round(pago_total, 2)
 
@@ -210,10 +204,25 @@ class ReciboGenerator:
             desglose_data.append(["Descuento:", f"-{self._format_currency(descuento_monto)} ({descuento})"])
             desglose_data.append(["Subtotal con descuento:", self._format_currency(precio_descuento)])
         
-        # Cuotas adicionales (solo si aplica)
-        cuotas_adicionales = float(data.get('cuotas_adicionales', 0))
-        if cuotas_adicionales > 0:
-            desglose_data.append(["Cuotas adicionales:", self._format_currency(cuotas_adicionales)])
+        # Cuotas adicionales con detalle (solo si aplica)
+        cuotas_comision = float(data.get('cuotas_comision', 0))
+        cuotas_deposito = float(data.get('cuotas_deposito', 0))
+        detalle_cuotas = data.get('detalle_cuotas', '')
+        
+        if cuotas_comision > 0:
+            # Extraer descripción de comisión del detalle
+            if 'Comisión inmobiliaria' in detalle_cuotas:
+                detalle_comision = detalle_cuotas.split(' + ')[0] if ' + ' in detalle_cuotas else detalle_cuotas
+                desglose_data.append([detalle_comision + ":", self._format_currency(cuotas_comision)])
+        
+        if cuotas_deposito > 0:
+            # Extraer descripción de depósito del detalle
+            if 'Depósito en garantía' in detalle_cuotas:
+                if ' + ' in detalle_cuotas:
+                    detalle_deposito = detalle_cuotas.split(' + ')[1] if detalle_cuotas.startswith('Comisión') else detalle_cuotas.split(' + ')[0]
+                else:
+                    detalle_deposito = detalle_cuotas
+                desglose_data.append([detalle_deposito + ":", self._format_currency(cuotas_deposito)])
         
         # Servicios adicionales (solo si aplican)
         municipalidad = float(data.get('municipalidad', 0))
@@ -373,9 +382,16 @@ class ReciboGenerator:
         if expensas > 0:
             liquidacion_data.append(["Expensas:", self._format_currency(expensas)])
             
-        cuotas_adicionales = float(data.get('cuotas_adicionales', 0))
-        if cuotas_adicionales > 0:
-            liquidacion_data.append(["Cuotas adicionales:", self._format_currency(cuotas_adicionales)])
+        # Solo mostrar depósito (no comisión, que va a la inmobiliaria)
+        cuotas_deposito = float(data.get('cuotas_deposito', 0))
+        detalle_cuotas = data.get('detalle_cuotas', '')
+        if cuotas_deposito > 0 and 'Depósito en garantía' in detalle_cuotas:
+            # Extraer descripción de depósito del detalle
+            if ' + ' in detalle_cuotas:
+                detalle_deposito = detalle_cuotas.split(' + ')[1] if detalle_cuotas.startswith('Comisión') else detalle_cuotas.split(' + ')[0]
+            else:
+                detalle_deposito = detalle_cuotas
+            liquidacion_data.append([detalle_deposito + ":", self._format_currency(cuotas_deposito)])
         
         liquidacion_data.append(["", ""])  # Separador
         
