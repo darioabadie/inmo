@@ -4,3 +4,4 @@ client_secret*
 *.pickle
 *.pyc
 *.pdf
+*.DS_Store
