@@ -160,7 +160,8 @@ class ReciboGenerator:
         membrete_path = self._get_membrete_path()
         if membrete_path and os.path.exists(membrete_path):
             try:
-                img = Image(membrete_path, width=4*inch, height=1*inch)
+                # Membrete a todo el ancho disponible (entre márgenes)
+                img = Image(membrete_path, width=6*inch, height=None)  # height=None mantiene proporciones
                 img.hAlign = 'CENTER'
                 story.append(img)
                 story.append(Spacer(1, 8))
@@ -306,7 +307,8 @@ class ReciboGenerator:
         membrete_path = self._get_membrete_path()
         if membrete_path and os.path.exists(membrete_path):
             try:
-                img = Image(membrete_path, width=4*inch, height=1*inch)
+                # Membrete a todo el ancho disponible (entre márgenes)
+                img = Image(membrete_path, width=6*inch, height=None)  # height=None mantiene proporciones
                 img.hAlign = 'CENTER'
                 story.append(img)
                 story.append(Spacer(1, 8))
