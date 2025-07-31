@@ -16,6 +16,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from inmobiliaria.models import Propiedad, Contrato
 from inmobiliaria import historical
 from inmobiliaria import config
+from inmobiliaria.services.historical_service import HistoricalService
+from inmobiliaria.services.historical_data import HistoricalDataManager
 
 
 class TestHistoricalIntegracion(unittest.TestCase):
