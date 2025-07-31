@@ -180,8 +180,8 @@ class MonthlyRecordGenerator:
             logging.warning(f"[VALIDACIÓN] Precio base inválido para {context.propiedad.nombre}: {context.precio_base_actual}")
             return False
         
-        # Verificar que la fecha sea válida
-        if context.fecha_actual <= context.fecha_inicio_contrato:
+        # Verificar que la fecha sea válida (debe ser posterior al inicio del contrato)
+        if context.fecha_actual < context.fecha_inicio_contrato:
             logging.warning(f"[VALIDACIÓN] Fecha inválida para {context.propiedad.nombre}: {context.fecha_actual}")
             return False
         
