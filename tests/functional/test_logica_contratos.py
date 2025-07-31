@@ -13,7 +13,7 @@ import pandas as pd
 # Agregar el directorio padre al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from tests.test_data import CONTRATOS_TEST_DATA
+from tests.support.test_data import CONTRATOS_TEST_DATA
 
 
 class TestVigenciaContratos(unittest.TestCase):

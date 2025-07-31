@@ -22,20 +22,22 @@ def run_all_tests():
     print("Total: 165 tests funcionales")
     print("=" * 70)
     
-    # Orden específico de ejecución según categorías funcionales
+    # Orden específico de ejecución según nueva estructura organizada
     test_modules = [
-        'test_validacion_datos',        # Tests 1-26: Validación de datos de entrada
-        'test_logica_contratos',        # Tests 27-40: Lógica de contratos  
-        'test_actualizaciones',         # Tests 41-52: Cálculos de actualización
-        'test_cuotas_adicionales',      # Tests 53-65: Cálculo de cuotas adicionales
-        'test_precios_finales',         # Tests 66-79: Precios finales y comisiones
-        'test_campos_informativos',     # Tests 80-91: Campos informativos
-        'test_casos_extremos',          # Tests 92-101: Casos extremos y manejo de errores
-        'test_integracion_completa',    # Tests 102-110: Integración y flujo completo
-        # Tests del módulo histórico (ACTUALIZADOS)
-        'test_historical_core',         # Tests 111-135: Funcionalidad núcleo del histórico
-        'test_historical_incremental',  # Tests 136-150: Lógica incremental 
-        # 'test_historical_integracion',  # Tests 151-165: Integración completa histórico (TEMPORALMENTE DESHABILITADO)
+        # Tests funcionales (1-110)
+        'functional.test_validacion_datos',        # Tests 1-26: Validación de datos de entrada
+        'functional.test_logica_contratos',        # Tests 27-40: Lógica de contratos  
+        'functional.test_actualizaciones',         # Tests 41-52: Cálculos de actualización
+        'functional.test_cuotas_adicionales',      # Tests 53-65: Cálculo de cuotas adicionales
+        'functional.test_precios_finales',         # Tests 66-79: Precios finales y comisiones
+        'functional.test_campos_informativos',     # Tests 80-91: Campos informativos
+        'functional.test_casos_extremos',          # Tests 92-101: Casos extremos y manejo de errores
+        'functional.test_integracion_completa',    # Tests 102-110: Integración y flujo completo
+        
+        # Tests de integración histórica (111-150)
+        'integration.test_historical_core',         # Tests 111-135: Funcionalidad núcleo del histórico
+        'integration.test_historical_incremental',  # Tests 136-150: Lógica incremental 
+        # 'integration.test_historical_integracion',  # Tests 151-165: Integración completa histórico (TEMPORALMENTE DESHABILITADO)
     ]
     
     # Descubrir y ejecutar tests en orden
