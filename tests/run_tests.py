@@ -38,6 +38,10 @@ def run_all_tests():
         'integration.test_historical_core',         # Tests 111-135: Funcionalidad núcleo del histórico
         'integration.test_historical_incremental',  # Tests 136-150: Lógica incremental 
         # 'integration.test_historical_integracion',  # Tests 151-165: Integración completa histórico (TEMPORALMENTE DESHABILITADO)
+        
+        # Tests unitarios - nueva arquitectura de servicios
+        'unit.test_historical_service',            # Tests unitarios: HistoricalService
+        'unit.test_historical_data_manager',       # Tests unitarios: HistoricalDataManager
     ]
     
     # Descubrir y ejecutar tests en orden
