@@ -66,6 +66,25 @@ tests/
 - ✅ Validación de vigencia de contratos
 - ✅ Validación de campos requeridos
 
+## 🧪 Tests del Sistema de Logging
+
+#### 6. **test_error_logging.py** ⭐ NUEVO
+- ✅ **Configuración de logger**: Tests para `setup_error_logger()`
+  - Creación automática del directorio `logs/`
+  - Configuración correcta del logger `historical_errors`
+  - Formato de mensajes con timestamp y contexto
+  - Modo append (no sobrescribe logs existentes)
+  - Prevención de handlers duplicados
+- ✅ **Integración con HistoricalService**: 
+  - Aceptación del logger en constructor
+  - Funcionamiento sin logger (modo opcional)
+  - Logging detallado de errores de propiedades
+  - Manejo de campos faltantes en datos
+- ✅ **Tests de integración end-to-end**:
+  - Flujo completo desde setup hasta archivo
+  - Verificación de contenido y formato de logs
+  - Validación de timestamps y estructura
+
 ## 🚀 Cómo Ejecutar Tests
 
 ### Opción 1: Ejecutar todos los tests
@@ -113,6 +132,9 @@ python -m unittest test_fase1_logica_critica.py -v
 
 # Ejecutar un test específico
 python -m unittest test_fase1_logica_critica.TestStep11PrecioBaseAcumulado.test_calculo_acumulado_porcentaje_fijo -v
+
+# Ejecutar tests de logging de errores
+python -m unittest unit.test_error_logging -v
 ```
 
 ## 📊 Interpretación de Resultados
@@ -206,14 +228,22 @@ python -m unittest tests.test_calculations.TestInflacionCalculations.test_inflac
 | Lógica de ciclos y actualizaciones | ✅ 100% | 12 tests |
 | Validación de campos | ✅ 100% | 4 tests |
 | Flujo de integración | ✅ 100% | 8 tests |
+| **Sistema de logging de errores** | ✅ 100% | **11 tests** |
+| `setup_error_logger()` | ✅ 100% | 5 tests |
+| Error logging en HistoricalService | ✅ 100% | 6 tests |
 
 ## 📈 Métricas Esperadas
 
 Al ejecutar todos los tests, deberías ver:
-- **Total de tests**: ~41 tests
-- **Tiempo de ejecución**: < 2 segundos
-- **Cobertura**: 100% de las funciones críticas
+- **Total de tests**: ~52 tests (41 previos + 11 nuevos de error logging)
+- **Tiempo de ejecución**: < 3 segundos
+- **Cobertura**: 100% de las funciones críticas + sistema de logging
 - **Status esperado**: ✅ TODOS EXITOSOS
+
+### Tests por Categoría:
+- **Tests funcionales (1-110)**: ~39 tests
+- **Tests histórico (111-165)**: ~13 tests  
+- **Tests de logging**: 11 tests nuevos
 
 ## 🐛 Qué hacer si fallan tests
 

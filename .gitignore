@@ -5,3 +5,7 @@ client_secret*
 *.pyc
 *.pdf
 *.DS_Store
+
+# Logs
+logs/
+*.log

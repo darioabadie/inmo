@@ -16,7 +16,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from inmobiliaria.services.calculations import calcular_precio_base_acumulado, traer_factor_icl
 from inmobiliaria.services.inflation import traer_inflacion, inflacion_acumulada
-from tests.test_data import get_inflacion_df_test
+from tests.support.test_data import get_inflacion_df_test
 
 
 class TestCalculoPorcentajeFijo(unittest.TestCase):
