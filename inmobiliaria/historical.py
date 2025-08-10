@@ -9,15 +9,43 @@ REFACTORIZADO: Ahora usa arquitectura modular con servicios especializados.
 import argparse
 import datetime as dt
 import logging
+import os
 import urllib3
 
 from .services.historical_service import HistoricalService
 
-# Configuración de logging
+# Configuración de logging principal
 logging.basicConfig(
     level=logging.WARNING,
     format="%(levelname)s: %(message)s"
 )
+
+# Configuración del logger específico para errores del historial
+def setup_error_logger():
+    """Configura un logger específico para errores del historial."""
+    error_logger = logging.getLogger('historical_errors')
+    error_logger.setLevel(logging.ERROR)
+    
+    # Crear el directorio si no existe
+    os.makedirs('logs', exist_ok=True)
+    
+    # Handler para archivo
+    file_handler = logging.FileHandler('logs/errors.log', encoding='utf-8')
+    file_handler.setLevel(logging.ERROR)
+    
+    # Formato detallado para el archivo
+    formatter = logging.Formatter(
+        '%(asctime)s - %(levelname)s - [HISTORICAL] - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    file_handler.setFormatter(formatter)
+    
+    # Evitar duplicar logs si ya está configurado
+    if not error_logger.handlers:
+        error_logger.addHandler(file_handler)
+    
+    return error_logger
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
@@ -46,12 +74,15 @@ def main():
     - MonthlyRecordGenerator: Genera registros mensuales
     - HistoricalCalculations: Realiza cálculos especializados
     """
+    # Configurar el logger de errores
+    error_logger = setup_error_logger()
+    
     # Parsear argumentos
     args = _parse_args()
     fecha_limite = _parse_fecha_limite(args.hasta)
     
     # Crear el servicio principal
-    service = HistoricalService()
+    service = HistoricalService(error_logger=error_logger)
     
     # Generar el historial completo
     logging.warning(f"[INICIO] Generando historial hasta {args.hasta}")
@@ -63,10 +94,16 @@ def main():
     
     if summary.errores:
         print(f"Errores encontrados: {len(summary.errores)}")
+        print(f"Los errores han sido guardados en 'logs/errors.log'")
         for error in summary.errores[:5]:  # Mostrar solo los primeros 5 errores
             print(f"  - {error}")
         if len(summary.errores) > 5:
             print(f"  ... y {len(summary.errores) - 5} errores más")
+        
+        # Log de resumen de errores
+        error_logger.error(f"RESUMEN: {len(summary.errores)} errores encontrados durante generación de historial hasta {args.hasta}")
+    else:
+        print("✓ Historial generado sin errores")
 
 
 if __name__ == "__main__":

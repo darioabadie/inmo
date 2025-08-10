@@ -4,7 +4,7 @@ Orquesta todos los componentes y maneja el flujo principal de procesamiento.
 """
 import datetime as dt
 import logging
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from ..constants import DEFAULT_VALUES, REQUIRED_FIELDS
 from ..domain.historical_models import HistoricalRecord, HistoricalSummary, PropertyHistoricalData
@@ -26,11 +26,12 @@ class HistoricalService:
     - Generar resúmenes y estadísticas
     """
     
-    def __init__(self):
+    def __init__(self, error_logger: Optional[logging.Logger] = None):
         self.data_manager = HistoricalDataManager()
         self.record_generator = MonthlyRecordGenerator()
         self.calculations = HistoricalCalculations()
         self.summary = HistoricalSummary()
+        self.error_logger = error_logger
     
     def generate_historical_until(self, fecha_limite: dt.date) -> HistoricalSummary:
         """
@@ -66,9 +67,29 @@ class HistoricalService:
                 
             except Exception as e:
                 nombre_propiedad = fila.get("nombre_inmueble", "Desconocido")
-                self.summary.add_error(nombre_propiedad, str(e))
+                error_msg = str(e)
+                
+                # Agregar al resumen
+                self.summary.add_error(nombre_propiedad, error_msg)
                 self.summary.incrementar_omitida()
+                
+                # Log a consola (como antes)
                 logging.warning(f"[ERROR] {nombre_propiedad}: {e}")
+                
+                # Log detallado al archivo si está configurado
+                if self.error_logger:
+                    # Información adicional para el log de archivo
+                    inquilino = fila.get("inquilino", "N/A")
+                    fecha_inicio = fila.get("fecha_inicio_contrato", "N/A")
+                    precio_original = fila.get("precio_original", "N/A")
+                    
+                    self.error_logger.error(
+                        f"Propiedad: {nombre_propiedad} | "
+                        f"Inquilino: {inquilino} | "
+                        f"Fecha inicio: {fecha_inicio} | "
+                        f"Precio original: {precio_original} | "
+                        f"Error: {error_msg}"
+                    )
         
         # Escribir resultados
         if todos_los_registros:

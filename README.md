@@ -35,6 +35,8 @@ Instala las dependencias con:
 pip install -r requirements.txt
 ```
 
+**Nota**: La aplicación creará automáticamente un directorio `logs/` para almacenar archivos de registro de errores cuando sea necesario.
+
 ## Autenticación con Google Sheets
 
 Para que la app pueda acceder y modificar tu Google Sheets, debes autenticarte con Google. Sigue estos pasos:
@@ -78,6 +80,27 @@ python -m inmobiliaria.historical --hasta AAAA-MM
 - El script generará/actualizará una hoja llamada `historico` con todos los registros mensuales.
 - **Funcionalidad incremental**: Si ya existe un historial, solo agregará los meses faltantes.
 - **Respeta ajustes manuales**: Si modificas un `precio_original` en el historial, los cálculos futuros respetarán ese valor.
+- **Logging de errores**: Los errores que impiden procesar propiedades se guardan automáticamente en `logs/errors.log` con información detallada.
+
+### Logging de Errores
+
+El módulo de historial registra automáticamente todos los errores que ocurren durante el procesamiento en un archivo de log dedicado:
+
+- **Ubicación**: `logs/errors.log`
+- **Formato**: Incluye timestamp, nivel, contexto y detalles del error
+- **Información registrada**: Nombre de la propiedad, inquilino, fecha de inicio del contrato, precio original y descripción del error
+- **Rotación**: El archivo se extiende con cada ejecución (no se sobrescribe)
+
+**Ejemplo de entrada en el log:**
+```
+2025-08-10 17:00:58 - ERROR - [HISTORICAL] - Propiedad: Av Corrientes 1234 | Inquilino: Juan Pérez | Fecha inicio: 2024-01-15 | Precio original: 100000 | Error: Campo obligatorio faltante: actualizacion
+```
+
+**Beneficios:**
+- Facilita la identificación de propiedades con datos inconsistentes
+- Permite auditoría y seguimiento de problemas recurrentes
+- No interrumpe el procesamiento de otras propiedades
+- Información persistente para análisis posterior
 
 ## Estructura esperada de la hoja "maestro"
 
