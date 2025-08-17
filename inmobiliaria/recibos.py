@@ -31,8 +31,12 @@ class ReciboGenerator:
         self.mes_periodo = mes_periodo
         self.output_dir = Path("recibos") / mes_periodo
         
-        # Crear una sola carpeta para todos los recibos
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        # Crear carpetas para recibos sin firmar y firmados
+        self.output_dir_sin_firmar = self.output_dir / "sin_firmar"
+        self.output_dir_firmados = self.output_dir / "firmados"
+        
+        self.output_dir_sin_firmar.mkdir(parents=True, exist_ok=True)
+        self.output_dir_firmados.mkdir(parents=True, exist_ok=True)
         
         # Configuración de estilos
         self.styles = getSampleStyleSheet()
@@ -104,6 +108,22 @@ class ReciboGenerator:
                 membrete_files = list(img_dir.glob(f"{pattern}*{ext}"))
                 if membrete_files:
                     return str(membrete_files[0])
+        
+        return None
+
+    def _get_firma_path(self) -> Optional[str]:
+        """Obtiene la ruta del archivo de firma digital."""
+        img_dir = Path(__file__).parent / "img"
+        firma_path = img_dir / "firma.png"
+        
+        if firma_path.exists():
+            return str(firma_path)
+        
+        # Buscar otros formatos de firma
+        for ext in ['.jpg', '.jpeg', '.png']:
+            firma_file = img_dir / f"firma{ext}"
+            if firma_file.exists():
+                return str(firma_file)
         
         return None
 
@@ -196,7 +216,7 @@ class ReciboGenerator:
             logging.error(f"Error obteniendo medio_pago para {nombre_inmueble}: {e}")
             return 'efectivo'  # Fallback a efectivo
 
-    def _create_recibo_unificado(self, data: Dict, medio_pago: str) -> List:
+    def _create_recibo_unificado(self, data: Dict, medio_pago: str, incluir_firma: bool = False) -> List:
         """Crea el contenido del recibo unificado según el medio de pago."""
         story = []
         
@@ -359,24 +379,78 @@ class ReciboGenerator:
         if meses_prox_ren:
             story.append(Paragraph(f"Meses hasta vencimiento: {meses_prox_ren} meses", self.styles['TextoRecibo']))
         
-        story.append(Spacer(1, 15))
+        story.append(Spacer(1, 8))  # Reducido de 15
         
         # Sección de firmas
         story.append(Paragraph("FIRMAS", self.styles['Subtitulo']))
         
-        firmas_data = [
-            ["Inquilino (Locatario)", "Inmobiliaria"],
-            ["_" * 30, "_" * 30],
-            ["", ""],
-            ["Firma y aclaración", "Firma y aclaración"]
-        ]
+        if incluir_firma:
+            # Crear tabla con firma digital para la inmobiliaria
+            firma_path = self._get_firma_path()
+            
+            if firma_path and os.path.exists(firma_path):
+                try:
+                    # Cargar imagen de firma (más grande)
+                    firma_img = Image(firma_path, width=2.4*inch, height=0.8*inch)
+                    firma_img.hAlign = 'CENTER'
+                    
+                    # Crear tabla interna con firma arriba y aclaración abajo, bien separadas
+                    firma_content = Table([
+                        [firma_img],           # Firma arriba
+                        ["Victor Abadie"],     # Aclaración en el medio
+                        ["_" * 20]            # Línea abajo
+                    ], colWidths=[3*inch], rowHeights=[0.8*inch, 0.25*inch, 0.15*inch])
+                    
+                    firma_content.setStyle(TableStyle([
+                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                        ('VALIGN', (0, 0), (0, 0), 'BOTTOM'),    # Firma alineada abajo de su celda
+                        ('VALIGN', (0, 1), (0, 1), 'BOTTOM'),    # Aclaración alineada abajo de su celda
+                        ('VALIGN', (0, 2), (0, 2), 'TOP'),       # Línea alineada arriba de su celda
+                        ('FONTSIZE', (0, 1), (0, 1), 10),        # Tamaño para "Victor Abadie"
+                        ('FONTNAME', (0, 1), (0, 1), 'Helvetica'), # Nombre normal
+                        ('FONTSIZE', (0, 2), (0, 2), 9),         # Tamaño para la línea
+                        ('TOPPADDING', (0, 0), (-1, -1), 2),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+                        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+                        ('RIGHTPADDING', (0, 0), (-1, -1), 0)
+                    ]))
+                    
+                    firmas_data = [
+                        ["Inquilino (Locatario)", ""],
+                        ["_" * 30, firma_content],
+                        ["Firma y aclaración", "Firma y aclaración"]
+                    ]
+                except Exception as e:
+                    logging.warning(f"No se pudo cargar la firma digital: {e}")
+                    # Fallback a firmas normales
+                    firmas_data = [
+                        ["Inquilino (Locatario)", "Inmobiliaria"],
+                        ["_" * 30, "_" * 30],
+                        ["Firma y aclaración", "Firma y aclaración"]
+                    ]
+            else:
+                logging.warning("No se encontró archivo de firma digital en img/firma.png")
+                # Fallback a firmas normales
+                firmas_data = [
+                    ["Inquilino (Locatario)", "Inmobiliaria"],
+                    ["_" * 30, "_" * 30],
+                    ["Firma y aclaración", "Firma y aclaración"]
+                ]
+        else:
+            # Firmas sin firma digital (recibo sin firmar)
+            firmas_data = [
+                ["Inquilino (Locatario)", "Inmobiliaria"],
+                ["_" * 30, "_" * 30],
+                ["Firma y aclaración", "Firma y aclaración"]
+            ]
         
-        firmas_table = Table(firmas_data, colWidths=[3*inch, 3*inch])
+        firmas_table = Table(firmas_data, colWidths=[3*inch, 3*inch], rowHeights=[0.3*inch, 0.5*inch, 0.3*inch])
         firmas_table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),  # Reducido de 8
+            ('TOPPADDING', (0, 0), (-1, -1), 2),     # Añadido para controlar espacios
         ]))
         story.append(firmas_table)
         
@@ -393,8 +467,8 @@ class ReciboGenerator:
         text = text.replace(' ', '_').strip()
         return text[:50]  # Limitar a 50 caracteres
 
-    def generar_recibo(self, data: Dict) -> str:
-        """Genera un recibo PDF unificado para una propiedad."""
+    def generar_recibo(self, data: Dict) -> Tuple[str, str]:
+        """Genera un recibo PDF unificado para una propiedad en ambas versiones."""
         
         # Obtener medio de pago desde la hoja administración
         nombre_inmueble = data.get('nombre_inmueble', '')
@@ -404,21 +478,30 @@ class ReciboGenerator:
         propietario = self._sanitize_filename(data.get('propietario', 'Sin_Propietario'))
         inquilino = self._sanitize_filename(data.get('inquilino', 'Sin_Inquilino'))
         filename = f"{propietario}_{inquilino}.pdf"
-        filepath = self.output_dir / filename
         
-        # Crear documento PDF simple
-        doc = SimpleDocTemplate(str(filepath), pagesize=A4)
+        # Rutas para ambas versiones
+        filepath_sin_firmar = self.output_dir_sin_firmar / filename
+        filepath_firmado = self.output_dir_firmados / filename
         
-        # Crear contenido según el medio de pago
-        story = self._create_recibo_unificado(data, medio_pago)
-        
-        # Generar PDF
         try:
-            doc.build(story)
-            logging.info(f"✓ Recibo generado ({medio_pago}): {filepath}")
-            return str(filepath)
+            # Generar versión SIN FIRMAR
+            doc_sin_firmar = SimpleDocTemplate(str(filepath_sin_firmar), pagesize=A4)
+            story_sin_firmar = self._create_recibo_unificado(data, medio_pago, incluir_firma=False)
+            doc_sin_firmar.build(story_sin_firmar)
+            
+            # Generar versión FIRMADA
+            doc_firmado = SimpleDocTemplate(str(filepath_firmado), pagesize=A4)
+            story_firmado = self._create_recibo_unificado(data, medio_pago, incluir_firma=True)
+            doc_firmado.build(story_firmado)
+            
+            logging.info(f"✓ Recibos generados ({medio_pago}):")
+            logging.info(f"  Sin firmar: {filepath_sin_firmar}")
+            logging.info(f"  Firmado: {filepath_firmado}")
+            
+            return str(filepath_sin_firmar), str(filepath_firmado)
+            
         except Exception as e:
-            logging.error(f"Error generando recibo para {filename}: {e}")
+            logging.error(f"Error generando recibos para {filename}: {e}")
             raise
 
 
@@ -508,10 +591,14 @@ def main():
     for medio, count in contador_medios.items():
         logging.info(f"  {medio}: {count}")
     logging.info(f"Errores: {errores}")
-    logging.info(f"Directorio de recibos: {generator.output_dir.absolute()}")
+    logging.info(f"Directorios de recibos:")
+    logging.info(f"  Sin firmar: {generator.output_dir_sin_firmar.absolute()}")
+    logging.info(f"  Firmados: {generator.output_dir_firmados.absolute()}")
     
     print(f"Proceso completado. {total_generados} propiedades procesadas.")
-    print(f"Recibos generados en: {generator.output_dir.absolute()}")
+    print(f"Recibos generados en:")
+    print(f"  Sin firmar: {generator.output_dir_sin_firmar.absolute()}")
+    print(f"  Firmados: {generator.output_dir_firmados.absolute()}")
 
 
 if __name__ == "__main__":
