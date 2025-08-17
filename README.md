@@ -82,6 +82,20 @@ python -m inmobiliaria.historical --hasta AAAA-MM
 - **Respeta ajustes manuales**: Si modificas un `precio_original` en el historial, los cálculos futuros respetarán ese valor.
 - **Logging de errores**: Los errores que impiden procesar propiedades se guardan automáticamente en `logs/errors.log` con información detallada.
 
+### Generación de Recibos
+
+Para generar recibos en PDF basados en los datos ya calculados:
+
+```sh
+python -m inmobiliaria.recibos --mes AAAA-MM
+```
+
+- El parámetro `--mes` es opcional. Si no lo indicas, se usará el mes actual.
+- El script generará recibos unificados en PDF para cada propiedad en `recibos/AAAA-MM/`.
+- **Funcionalidad inteligente**: El recibo se adapta según el `medio_pago` configurado en la hoja "administracion":
+  - **Transferencia**: Muestra desglose de transferencias (al propietario y a la inmobiliaria)
+  - **Efectivo**: Indica que el total debe entregarse en efectivo a la inmobiliaria
+
 ### Logging de Errores
 
 El módulo de historial registra automáticamente todos los errores que ocurren durante el procesamiento en un archivo de log dedicado:
@@ -128,6 +142,7 @@ La hoja de Google Sheets debe tener una hoja llamada `administracion` con las si
 - `gas` (monto fijo mensual de servicio de gas) - default: 0
 - `expensas` (monto fijo mensual de expensas) - default: 0
 - `descuento` (porcentaje de descuento aplicado, ej: "15%") - default: "0%"
+- `medio_pago` ("transferencia" o "efectivo") - default: "efectivo"
 
 ### Funcionalidad de Comisión y Depósito en Cuotas
 
@@ -171,12 +186,33 @@ La columna `descuento` permite aplicar un porcentaje de descuento sobre el preci
   - Las cuotas adicionales también se calculan sobre el precio con descuento
   - El descuento se mantiene fijo durante toda la vigencia del contrato
 
-**Ejemplo con descuento**: 
+- **Ejemplo con descuento**: 
 - Precio original actualizado: $100,000
 - Descuento: 15%
 - Precio con descuento: $85,000
 - Comisión 5%: $4,250 (sobre $85,000, no sobre $100,000)
 - Cuotas adicionales: Se calculan sobre $85,000
+
+### Funcionalidad de Medio de Pago
+
+La columna `medio_pago` determina cómo se presentan las instrucciones de pago en los recibos:
+
+- **"transferencia"**: El recibo muestra el desglose de transferencias que debe realizar el inquilino:
+  - **Al propietario**: Precio con descuento - comisión inmobiliaria + servicios adicionales + depósito
+  - **A la inmobiliaria**: Comisión inmobiliaria + comisión fraccionada (si aplica)
+  - El total siempre suma el `precio_final` que paga el inquilino
+
+- **"efectivo"**: El recibo indica que el total debe entregarse en efectivo a la inmobiliaria
+
+**Ejemplo - Transferencia**:
+- Alquiler: $100,000, comisión inmobiliaria 5% = $5,000
+- Transferir al propietario: $95,000
+- Transferir a la inmobiliaria: $5,000
+- **Total que paga el inquilino: $100,000**
+
+**Ejemplo - Efectivo**:
+- Alquiler: $100,000
+- **Total a entregar en efectivo: $100,000**
 
 ## Salida
 

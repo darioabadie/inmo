@@ -25,18 +25,14 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 
 class ReciboGenerator:
-    """Generador de recibos de alquiler en PDF con secciones para inquilino y propietario."""
+    """Generador de recibos de alquiler en PDF unificados."""
     
     def __init__(self, mes_periodo: str):
         self.mes_periodo = mes_periodo
         self.output_dir = Path("recibos") / mes_periodo
         
-        # Crear carpetas separadas para inquilino y propietario
-        self.inquilino_dir = self.output_dir / "inquilino"
-        self.propietario_dir = self.output_dir / "propietario"
-        
-        self.inquilino_dir.mkdir(parents=True, exist_ok=True)
-        self.propietario_dir.mkdir(parents=True, exist_ok=True)
+        # Crear una sola carpeta para todos los recibos
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         
         # Configuración de estilos
         self.styles = getSampleStyleSheet()
@@ -44,6 +40,9 @@ class ReciboGenerator:
         
         # Dimensiones de página A4
         self.page_width, self.page_height = A4
+        
+        # Caché de medios de pago para evitar múltiples llamadas a la API
+        self._medios_pago_cache = None
         
     def _setup_custom_styles(self):
         """Configura estilos personalizados para los recibos."""
@@ -152,8 +151,53 @@ class ReciboGenerator:
         
         return round(pago_total, 2)
 
-    def _create_inquilino_section(self, data: Dict) -> List:
-        """Crea el contenido de la sección del inquilino."""
+    def _cargar_medios_pago(self) -> Dict[str, str]:
+        """Carga todos los medios de pago en una sola llamada a la API."""
+        if self._medios_pago_cache is not None:
+            return self._medios_pago_cache
+            
+        try:
+            logging.info("[CACHE] Cargando medios de pago desde Google Sheets...")
+            gc = get_gspread_client()
+            sh = gc.open_by_key(config.SHEET_ID)
+            ws_admin = sh.worksheet(config.SHEET_MAESTRO)
+            registros = ws_admin.get_all_records()
+            
+            # Crear diccionario de medios de pago
+            medios_pago = {}
+            for registro in registros:
+                nombre_inmueble = registro.get('nombre_inmueble', '')
+                medio_pago = str(registro.get('medio_pago', 'efectivo')).lower().strip()
+                if nombre_inmueble:
+                    medios_pago[nombre_inmueble] = medio_pago
+            
+            self._medios_pago_cache = medios_pago
+            logging.info(f"[CACHE] ✓ Cargados {len(medios_pago)} medios de pago")
+            return medios_pago
+            
+        except Exception as e:
+            logging.error(f"Error cargando medios de pago: {e}")
+            return {}
+
+    def _obtener_medio_pago(self, nombre_inmueble: str) -> str:
+        """Obtiene el medio de pago desde el caché para una propiedad."""
+        try:
+            medios_pago = self._cargar_medios_pago()
+            medio_pago = medios_pago.get(nombre_inmueble, 'efectivo')
+            
+            if medio_pago == 'efectivo' and nombre_inmueble not in medios_pago:
+                logging.warning(f"[CACHE] ✗ No se encontró medio_pago para '{nombre_inmueble}', usando 'efectivo'")
+            else:
+                logging.debug(f"[CACHE] ✓ {nombre_inmueble} -> {medio_pago}")
+                
+            return medio_pago
+            
+        except Exception as e:
+            logging.error(f"Error obteniendo medio_pago para {nombre_inmueble}: {e}")
+            return 'efectivo'  # Fallback a efectivo
+
+    def _create_recibo_unificado(self, data: Dict, medio_pago: str) -> List:
+        """Crea el contenido del recibo unificado según el medio de pago."""
         story = []
         
         # Membrete
@@ -169,12 +213,13 @@ class ReciboGenerator:
                 logging.warning(f"No se pudo cargar el membrete: {e}")
         
         # Título
-        story.append(Paragraph("RECIBO DE ALQUILER - INQUILINO", self.styles['TituloRecibo']))
+        story.append(Paragraph("RECIBO DE ALQUILER", self.styles['TituloRecibo']))
         
         # Información básica
         info_data = [
             ["Dirección:", data.get('dir_inmueble', '')],
             ["Inquilino:", data.get('inquilino', '')],
+            ["Propietario:", data.get('propietario', '')],
             ["Mes:", self.mes_periodo],
         ]
         
@@ -195,7 +240,7 @@ class ReciboGenerator:
         
         # Precio original
         precio_original = float(data.get('precio_original', 0))
-        desglose_data.append(["Precio original:", self._format_currency(precio_original)])
+        desglose_data.append(["Alquiler mensual:", self._format_currency(precio_original)])
         
         # Descuento (solo si aplica)
         descuento = data.get('descuento', '0%')
@@ -203,7 +248,6 @@ class ReciboGenerator:
             precio_descuento = float(data.get('precio_descuento', 0))
             descuento_monto = precio_original - precio_descuento
             desglose_data.append(["Descuento:", f"-{self._format_currency(descuento_monto)} ({descuento})"])
-            desglose_data.append(["Subtotal con descuento:", self._format_currency(precio_descuento)])
         
         # Cuotas adicionales con detalle (solo si aplica)
         cuotas_comision = float(data.get('cuotas_comision', 0))
@@ -262,6 +306,45 @@ class ReciboGenerator:
         story.append(desglose_table)
         story.append(Spacer(1, 12))
         
+        # Lógica condicional según medio de pago
+        if medio_pago == 'transferencia':
+            story.append(Paragraph("INSTRUCCIONES DE TRANSFERENCIA", self.styles['Subtitulo']))
+            
+            # Calcular montos para transferencias
+            pago_propietario = float(data.get('pago_prop', 0))
+            comision_inmo = float(data.get('comision_inmo', 0))
+            
+            # Solo incluir la comisión fraccionada en la transferencia a la inmobiliaria
+            cuotas_comision = float(data.get('cuotas_comision', 0))
+            transferencia_inmobiliaria = comision_inmo + cuotas_comision
+            
+            transferencias_data = [
+                [f"Transferir a PROPIETARIO ({data.get('propietario', '')}):", self._format_currency(pago_propietario)],
+                ["Transferir a INMOBILIARIA:", self._format_currency(transferencia_inmobiliaria)],
+                ["", ""],  # Separador
+                ["TOTAL TRANSFERENCIAS:", self._format_currency(precio_final)]
+            ]
+            
+            transferencias_table = Table(transferencias_data, colWidths=[3.5*inch, 1.5*inch])
+            transferencias_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica'),
+                ('FONTNAME', (0, -1), (0, -1), 'Helvetica-Bold'),  # Total en negrita
+                ('FONTNAME', (1, -1), (1, -1), 'Helvetica-Bold'),  # Total en negrita
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('FONTSIZE', (0, -1), (-1, -1), 11),  # Total un poco más grande
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                ('LINEABOVE', (0, -1), (-1, -1), 1, colors.black),  # Línea arriba del total
+            ]))
+            story.append(transferencias_table)
+            
+        else:  # efectivo
+            story.append(Paragraph("FORMA DE PAGO: EFECTIVO", self.styles['Subtitulo']))
+            story.append(Paragraph("Entregar el total en efectivo a la inmobiliaria.", self.styles['TextoRecibo']))
+        
+        story.append(Spacer(1, 15))
+        
         # Información de actualización
         actualizacion = data.get('actualizacion', 'NO')
         if actualizacion == 'SI':
@@ -299,160 +382,6 @@ class ReciboGenerator:
         
         return story
 
-    def _create_propietario_section(self, data: Dict) -> List:
-        """Crea el contenido de la sección del propietario."""
-        story = []
-        
-        # Membrete
-        membrete_path = self._get_membrete_path()
-        if membrete_path and os.path.exists(membrete_path):
-            try:
-                # Membrete a todo el ancho disponible (entre márgenes)
-                img = Image(membrete_path, width=6*inch, height=None)  # height=None mantiene proporciones
-                img.hAlign = 'CENTER'
-                story.append(img)
-                story.append(Spacer(1, 8))
-            except Exception as e:
-                logging.warning(f"No se pudo cargar el membrete: {e}")
-        
-        # Título
-        story.append(Paragraph("RECIBO DE ALQUILER - PROPIETARIO", self.styles['TituloRecibo']))
-        
-        # Información básica
-        info_data = [
-            ["Dirección:", data.get('dir_inmueble', '')],
-            ["Propietario:", data.get('propietario', '')],
-            ["Mes:", self.mes_periodo],
-        ]
-        
-        info_table = Table(info_data, colWidths=[2*inch, 4*inch])
-        info_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-        ]))
-        story.append(info_table)
-        story.append(Spacer(1, 12))
-        
-        # Desglose completo para propietario
-        story.append(Paragraph("LIQUIDACIÓN DEL PROPIETARIO", self.styles['Subtitulo']))
-        
-        liquidacion_data = []
-        
-        # Ingresos
-        precio_original = float(data.get('precio_original', 0))
-        precio_descuento = float(data.get('precio_descuento', 0))
-        
-        liquidacion_data.append(["INGRESOS:", ""])
-        liquidacion_data.append(["Precio base actualizado:", self._format_currency(precio_original)])
-        
-        # Mostrar descuento si aplica
-        descuento = data.get('descuento', '0%')
-        if descuento and descuento != '0%' and descuento != '0.0%':
-            descuento_monto = precio_original - precio_descuento
-            liquidacion_data.append(["Descuento aplicado:", f"-{self._format_currency(descuento_monto)} ({descuento})"])
-            liquidacion_data.append(["Base para comisión:", self._format_currency(precio_descuento)])
-        else:
-            liquidacion_data.append(["Base para comisión:", self._format_currency(precio_descuento)])
-        
-        liquidacion_data.append(["", ""])  # Separador
-        
-        # Deducciones
-        liquidacion_data.append(["DEDUCCIONES:", ""])
-        comision_inmo = float(data.get('comision_inmo', 0))
-        liquidacion_data.append(["Comisión inmobiliaria:", f"-{self._format_currency(comision_inmo)}"])
-        
-        liquidacion_data.append(["", ""])  # Separador
-        
-        # Servicios adicionales que recibe el propietario
-        liquidacion_data.append(["SERVICIOS ADICIONALES:", ""])
-        
-        luz = float(data.get('luz', 0))
-        if luz > 0:
-            liquidacion_data.append(["Luz:", self._format_currency(luz)])
-            
-        gas = float(data.get('gas', 0))
-        if gas > 0:
-            liquidacion_data.append(["Gas:", self._format_currency(gas)])
-            
-        municipalidad = float(data.get('municipalidad', 0))
-        if municipalidad > 0:
-            liquidacion_data.append(["Municipalidad:", self._format_currency(municipalidad)])
-            
-        expensas = float(data.get('expensas', 0))
-        if expensas > 0:
-            liquidacion_data.append(["Expensas:", self._format_currency(expensas)])
-            
-        # Solo mostrar depósito (no comisión, que va a la inmobiliaria)
-        cuotas_deposito = float(data.get('cuotas_deposito', 0))
-        detalle_cuotas = data.get('detalle_cuotas', '')
-        if cuotas_deposito > 0 and 'Depósito en garantía' in detalle_cuotas:
-            # Extraer descripción de depósito del detalle
-            if ' + ' in detalle_cuotas:
-                detalle_deposito = detalle_cuotas.split(' + ')[1] if detalle_cuotas.startswith('Comisión') else detalle_cuotas.split(' + ')[0]
-            else:
-                detalle_deposito = detalle_cuotas
-            liquidacion_data.append([detalle_deposito + ":", self._format_currency(cuotas_deposito)])
-        
-        liquidacion_data.append(["", ""])  # Separador
-        
-        # Total a recibir (usar cálculo corregido)
-        pago_prop = self._calcular_pago_propietario_corregido(data)
-        liquidacion_data.append(["TOTAL A RECIBIR:", self._format_currency(pago_prop)])
-        
-        liquidacion_table = Table(liquidacion_data, colWidths=[3*inch, 2*inch])
-        liquidacion_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica'),
-            ('FONTNAME', (0, -1), (0, -1), 'Helvetica-Bold'),  # Total en negrita
-            ('FONTNAME', (1, -1), (1, -1), 'Helvetica-Bold'),  # Total en negrita
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('FONTSIZE', (0, -1), (-1, -1), 12),  # Total más grande
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-            ('LINEABOVE', (0, -1), (-1, -1), 1, colors.black),  # Línea arriba del total
-        ]))
-        story.append(liquidacion_table)
-        story.append(Spacer(1, 12))
-        
-        # Información adicional (igual que para inquilino)
-        actualizacion = data.get('actualizacion', 'NO')
-        if actualizacion == 'SI':
-            porc_actual = self._format_percentage(data.get('porc_actual', ''))
-            story.append(Paragraph(f"✓ Este mes se aplicó actualización: {porc_actual}", self.styles['TextoRecibo']))
-        
-        meses_prox_act = data.get('meses_prox_actualizacion', '')
-        if meses_prox_act:
-            story.append(Paragraph(f"Próxima actualización en: {meses_prox_act} meses", self.styles['TextoRecibo']))
-        
-        meses_prox_ren = data.get('meses_prox_renovacion', '')
-        if meses_prox_ren:
-            story.append(Paragraph(f"Meses hasta vencimiento: {meses_prox_ren} meses", self.styles['TextoRecibo']))
-        
-        story.append(Spacer(1, 10))
-        
-        # Sección de firmas (igual que para inquilino)
-        story.append(Paragraph("FIRMAS", self.styles['Subtitulo']))
-        
-        firmas_data = [
-            ["Propietario (Locador)", "Inmobiliaria"],
-            ["_" * 30, "_" * 30],
-            ["", ""],
-            ["Firma y aclaración", "Firma y aclaración"]
-        ]
-        
-        firmas_table = Table(firmas_data, colWidths=[3*inch, 3*inch])
-        firmas_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ]))
-        story.append(firmas_table)
-        
-        return story
-
     def _sanitize_filename(self, text: str) -> str:
         """Sanitiza un texto para usarlo como nombre de archivo."""
         # Reemplazar caracteres problemáticos
@@ -464,59 +393,33 @@ class ReciboGenerator:
         text = text.replace(' ', '_').strip()
         return text[:50]  # Limitar a 50 caracteres
 
-    def generar_recibo_inquilino(self, data: Dict) -> str:
-        """Genera un recibo PDF completo solo para el inquilino."""
+    def generar_recibo(self, data: Dict) -> str:
+        """Genera un recibo PDF unificado para una propiedad."""
+        
+        # Obtener medio de pago desde la hoja administración
+        nombre_inmueble = data.get('nombre_inmueble', '')
+        medio_pago = self._obtener_medio_pago(nombre_inmueble)
         
         # Crear nombre del archivo
         propietario = self._sanitize_filename(data.get('propietario', 'Sin_Propietario'))
         inquilino = self._sanitize_filename(data.get('inquilino', 'Sin_Inquilino'))
         filename = f"{propietario}_{inquilino}.pdf"
-        filepath = self.inquilino_dir / filename
+        filepath = self.output_dir / filename
         
         # Crear documento PDF simple
         doc = SimpleDocTemplate(str(filepath), pagesize=A4)
         
-        # Crear contenido completo para inquilino
-        story = self._create_inquilino_section(data)
+        # Crear contenido según el medio de pago
+        story = self._create_recibo_unificado(data, medio_pago)
         
         # Generar PDF
         try:
             doc.build(story)
-            logging.info(f"✓ Recibo inquilino generado: {filepath}")
+            logging.info(f"✓ Recibo generado ({medio_pago}): {filepath}")
             return str(filepath)
         except Exception as e:
-            logging.error(f"Error generando recibo inquilino para {filename}: {e}")
+            logging.error(f"Error generando recibo para {filename}: {e}")
             raise
-
-    def generar_recibo_propietario(self, data: Dict) -> str:
-        """Genera un recibo PDF completo solo para el propietario."""
-        
-        # Crear nombre del archivo
-        propietario = self._sanitize_filename(data.get('propietario', 'Sin_Propietario'))
-        inquilino = self._sanitize_filename(data.get('inquilino', 'Sin_Inquilino'))
-        filename = f"{propietario}_{inquilino}.pdf"
-        filepath = self.propietario_dir / filename
-        
-        # Crear documento PDF simple
-        doc = SimpleDocTemplate(str(filepath), pagesize=A4)
-        
-        # Crear contenido completo para propietario
-        story = self._create_propietario_section(data)
-        
-        # Generar PDF
-        try:
-            doc.build(story)
-            logging.info(f"✓ Recibo propietario generado: {filepath}")
-            return str(filepath)
-        except Exception as e:
-            logging.error(f"Error generando recibo propietario para {filename}: {e}")
-            raise
-
-    def generar_recibos(self, data: Dict) -> Tuple[str, str]:
-        """Genera ambos recibos (inquilino y propietario) para una propiedad."""
-        inquilino_path = self.generar_recibo_inquilino(data)
-        propietario_path = self.generar_recibo_propietario(data)
-        return inquilino_path, propietario_path
 
 
 def leer_datos_historico(mes_periodo: str) -> List[Dict]:
@@ -577,28 +480,38 @@ def main():
     # Crear generador de recibos
     generator = ReciboGenerator(mes_periodo)
     
+    # Pre-cargar medios de pago una sola vez
+    medios_pago = generator._cargar_medios_pago()
+    
     # Generar recibos para cada propiedad
     total_generados = 0
     errores = 0
+    contador_medios = {'transferencia': 0, 'efectivo': 0}
     
     for data in datos_periodo:
         try:
-            generator.generar_recibos(data)
+            # Obtener medio de pago del caché para estadísticas
+            nombre_inmueble = data.get('nombre_inmueble', '')
+            medio_pago = medios_pago.get(nombre_inmueble, 'efectivo')
+            contador_medios[medio_pago] = contador_medios.get(medio_pago, 0) + 1
+            
+            generator.generar_recibo(data)
             total_generados += 1
         except Exception as e:
-            logging.error(f"Error generando recibos para {data.get('nombre_inmueble', 'Desconocido')}: {e}")
+            logging.error(f"Error generando recibo para {data.get('nombre_inmueble', 'Desconocido')}: {e}")
             errores += 1
     
     # Resumen final
     logging.info(f"\n=== RESUMEN ===")
     logging.info(f"Propiedades procesadas: {total_generados}")
+    logging.info(f"Medios de pago procesados:")
+    for medio, count in contador_medios.items():
+        logging.info(f"  {medio}: {count}")
     logging.info(f"Errores: {errores}")
-    logging.info(f"Directorio inquilinos: {generator.inquilino_dir.absolute()}")
-    logging.info(f"Directorio propietarios: {generator.propietario_dir.absolute()}")
+    logging.info(f"Directorio de recibos: {generator.output_dir.absolute()}")
     
     print(f"Proceso completado. {total_generados} propiedades procesadas.")
-    print(f"Recibos inquilinos en: {generator.inquilino_dir.absolute()}")
-    print(f"Recibos propietarios en: {generator.propietario_dir.absolute()}")
+    print(f"Recibos generados en: {generator.output_dir.absolute()}")
 
 
 if __name__ == "__main__":
