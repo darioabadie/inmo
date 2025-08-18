@@ -220,7 +220,11 @@ class ReciboGenerator:
         """Crea el contenido del recibo unificado según el medio de pago."""
         story = []
         
-        # Membrete
+        # Para efectivo, crear recibo con dos talones sin membrete (van físicamente al local)
+        if medio_pago == 'efectivo':
+            return self._create_recibo_efectivo_doble_talon(data)
+        
+        # Para transferencia, mantener formato original con membrete
         membrete_path = self._get_membrete_path()
         if membrete_path and os.path.exists(membrete_path):
             try:
@@ -456,6 +460,143 @@ class ReciboGenerator:
         
         return story
 
+    def _create_recibo_efectivo_doble_talon(self, data: Dict) -> List:
+        """Crea un recibo con dos talones para efectivo (sin membrete)."""
+        story = []
+        
+        # Crear cada talón
+        for destinatario in ["INQUILINO", "INMOBILIARIA"]:
+            # Título del talón
+            story.append(Paragraph(f"RECIBO DE ALQUILER - TALÓN PARA {destinatario}", self.styles['TituloRecibo']))
+            
+            # Información básica en 2 columnas para ahorrar espacio
+            info_data = [
+                ["Dirección:", data.get('dir_inmueble', ''), "Mes:", self.mes_periodo],
+                ["Inquilino:", data.get('inquilino', ''), "Propietario:", data.get('propietario', '')]
+            ]
+            
+            info_table = Table(info_data, colWidths=[1.5*inch, 2.5*inch, 1.5*inch, 2.5*inch])
+            info_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),  # Centrado en todas las celdas
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),  # Primera columna en negrita
+                ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),  # Tercera columna en negrita
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Alineación superior
+            ]))
+            story.append(info_table)
+            story.append(Spacer(1, 8))
+            
+            # Desglose de pagos (más compacto)
+            story.append(Paragraph("DETALLE DEL PAGO", self.styles['Subtitulo']))
+            
+            desglose_data = []
+            
+            # Precio original
+            precio_original = float(data.get('precio_original', 0))
+            desglose_data.append(["Alquiler mensual:", self._format_currency(precio_original)])
+            
+            # Descuento (solo si aplica)
+            descuento = data.get('descuento', '0%')
+            if descuento and descuento != '0%' and descuento != '0.0%':
+                precio_descuento = float(data.get('precio_descuento', 0))
+                descuento_monto = precio_original - precio_descuento
+                desglose_data.append(["Descuento:", f"-{self._format_currency(descuento_monto)} ({descuento})"])
+            
+            # Cuotas adicionales (solo si aplican)
+            cuotas_comision = float(data.get('cuotas_comision', 0))
+            cuotas_deposito = float(data.get('cuotas_deposito', 0))
+            detalle_cuotas = data.get('detalle_cuotas', '')
+            
+            if cuotas_comision > 0:
+                if 'Comisión inmobiliaria' in detalle_cuotas:
+                    detalle_comision = detalle_cuotas.split(' + ')[0] if ' + ' in detalle_cuotas else detalle_cuotas
+                    desglose_data.append([detalle_comision + ":", self._format_currency(cuotas_comision)])
+            
+            if cuotas_deposito > 0:
+                if 'Depósito en garantía' in detalle_cuotas:
+                    if ' + ' in detalle_cuotas:
+                        detalle_deposito = detalle_cuotas.split(' + ')[1] if detalle_cuotas.startswith('Comisión') else detalle_cuotas.split(' + ')[0]
+                    else:
+                        detalle_deposito = detalle_cuotas
+                    desglose_data.append([detalle_deposito + ":", self._format_currency(cuotas_deposito)])
+            
+            # Servicios adicionales (solo si aplican)
+            municipalidad = float(data.get('municipalidad', 0))
+            if municipalidad > 0:
+                desglose_data.append(["Municipalidad:", self._format_currency(municipalidad)])
+                
+            luz = float(data.get('luz', 0))
+            if luz > 0:
+                desglose_data.append(["Luz:", self._format_currency(luz)])
+                
+            gas = float(data.get('gas', 0))
+            if gas > 0:
+                desglose_data.append(["Gas:", self._format_currency(gas)])
+                
+            expensas = float(data.get('expensas', 0))
+            if expensas > 0:
+                desglose_data.append(["Expensas:", self._format_currency(expensas)])
+            
+            # Precio final
+            precio_final = float(data.get('precio_final', 0))
+            desglose_data.append(["", ""])  # Línea separadora
+            desglose_data.append(["TOTAL A PAGAR:", self._format_currency(precio_final)])
+            
+            desglose_table = Table(desglose_data, colWidths=[2.5*inch, 2*inch])
+            desglose_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica'),
+                ('FONTNAME', (0, -1), (0, -1), 'Helvetica-Bold'),
+                ('FONTNAME', (1, -1), (1, -1), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('FONTSIZE', (0, -1), (-1, -1), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                ('LINEABOVE', (0, -1), (-1, -1), 1, colors.black),
+            ]))
+            story.append(desglose_table)
+            story.append(Spacer(1, 8))
+            
+            # Información de actualización (más compacta)
+            actualizacion = data.get('actualizacion', 'NO')
+            if actualizacion == 'SI':
+                porc_actual = self._format_percentage(data.get('porc_actual', ''))
+                story.append(Paragraph(f"✓ Actualización aplicada: {porc_actual}", self.styles['TextoRecibo']))
+            
+            # Firmas (sin firma digital para talones dobles)
+            story.append(Paragraph("FIRMAS", self.styles['Subtitulo']))
+            firmas_data = [
+                ["Inquilino (Locatario)", "Inmobiliaria"],
+                ["_" * 30, "_" * 30],
+                ["Firma y aclaración", "Firma y aclaración"]
+            ]
+            
+            firmas_table = Table(firmas_data, colWidths=[3*inch, 3*inch], rowHeights=[0.3*inch, 0.4*inch, 0.25*inch])
+            firmas_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+                ('TOPPADDING', (0, 0), (-1, -1), 2),
+            ]))
+            story.append(firmas_table)
+            
+            # Separador entre talones (excepto después del último)
+            if destinatario == "INQUILINO":
+                story.append(Spacer(1, 10))
+                # Línea divisoria
+                line_data = [["─" * 100]]
+                line_table = Table(line_data, colWidths=[7*inch])
+                line_table.setStyle(TableStyle([
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ]))
+                story.append(line_table)
+                story.append(Spacer(1, 15))  # Aumentado de 10 a 15 para dar más margen al talón de inmobiliaria
+        
+        return story
+
     def _sanitize_filename(self, text: str) -> str:
         """Sanitiza un texto para usarlo como nombre de archivo."""
         # Reemplazar caracteres problemáticos
@@ -484,21 +625,27 @@ class ReciboGenerator:
         filepath_firmado = self.output_dir_firmados / filename
         
         try:
-            # Generar versión SIN FIRMAR
+            # Generar versión SIN FIRMAR (siempre)
             doc_sin_firmar = SimpleDocTemplate(str(filepath_sin_firmar), pagesize=A4)
             story_sin_firmar = self._create_recibo_unificado(data, medio_pago, incluir_firma=False)
             doc_sin_firmar.build(story_sin_firmar)
             
-            # Generar versión FIRMADA
-            doc_firmado = SimpleDocTemplate(str(filepath_firmado), pagesize=A4)
-            story_firmado = self._create_recibo_unificado(data, medio_pago, incluir_firma=True)
-            doc_firmado.build(story_firmado)
-            
-            logging.info(f"✓ Recibos generados ({medio_pago}):")
-            logging.info(f"  Sin firmar: {filepath_sin_firmar}")
-            logging.info(f"  Firmado: {filepath_firmado}")
-            
-            return str(filepath_sin_firmar), str(filepath_firmado)
+            # Para efectivo, NO generar versión firmada (solo talones dobles)
+            if medio_pago == 'efectivo':
+                logging.info(f"✓ Recibo de efectivo generado (doble talón):")
+                logging.info(f"  Sin firmar: {filepath_sin_firmar}")
+                return str(filepath_sin_firmar), ""  # Retorna string vacío para firmado
+            else:
+                # Para transferencia, generar versión FIRMADA
+                doc_firmado = SimpleDocTemplate(str(filepath_firmado), pagesize=A4)
+                story_firmado = self._create_recibo_unificado(data, medio_pago, incluir_firma=True)
+                doc_firmado.build(story_firmado)
+                
+                logging.info(f"✓ Recibos generados ({medio_pago}):")
+                logging.info(f"  Sin firmar: {filepath_sin_firmar}")
+                logging.info(f"  Firmado: {filepath_firmado}")
+                
+                return str(filepath_sin_firmar), str(filepath_firmado)
             
         except Exception as e:
             logging.error(f"Error generando recibos para {filename}: {e}")
