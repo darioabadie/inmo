@@ -461,11 +461,23 @@ class ReciboGenerator:
         return story
 
     def _create_recibo_efectivo_doble_talon(self, data: Dict) -> List:
-        """Crea un recibo con dos talones para efectivo (sin membrete)."""
+        """Crea un recibo con dos talones para efectivo (con membrete solo para inquilino)."""
         story = []
         
         # Crear cada talón
         for destinatario in ["INQUILINO", "INMOBILIARIA"]:
+            # Agregar membrete solo para el talón del inquilino
+            if destinatario == "INQUILINO":
+                membrete_path = self._get_membrete_path()
+                if membrete_path and os.path.exists(membrete_path):
+                    try:
+                        # Membrete más pequeño para ahorrar espacio
+                        img = Image(membrete_path, width=6*inch, height=1*inch)  # Reducido de 6 a 4 inch
+                        img.hAlign = 'CENTER'
+                        story.append(img)
+                        story.append(Spacer(1, 4))  # Espaciado reducido
+                    except Exception as e:
+                        logging.warning(f"No se pudo cargar el membrete: {e}")
             # Título del talón
             story.append(Paragraph(f"RECIBO DE ALQUILER - TALÓN PARA {destinatario}", self.styles['TituloRecibo']))
             
@@ -485,7 +497,7 @@ class ReciboGenerator:
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Alineación superior
             ]))
             story.append(info_table)
-            story.append(Spacer(1, 8))
+            story.append(Spacer(1, 6))  # Reducido de 8 a 6
             
             # Desglose de pagos (más compacto)
             story.append(Paragraph("DETALLE DEL PAGO", self.styles['Subtitulo']))
@@ -556,7 +568,7 @@ class ReciboGenerator:
                 ('LINEABOVE', (0, -1), (-1, -1), 1, colors.black),
             ]))
             story.append(desglose_table)
-            story.append(Spacer(1, 8))
+            story.append(Spacer(1, 6))  # Reducido de 8 a 6
             
             # Información de actualización (más compacta)
             actualizacion = data.get('actualizacion', 'NO')
@@ -564,15 +576,14 @@ class ReciboGenerator:
                 porc_actual = self._format_percentage(data.get('porc_actual', ''))
                 story.append(Paragraph(f"✓ Actualización aplicada: {porc_actual}", self.styles['TextoRecibo']))
             
-            # Firmas (sin firma digital para talones dobles)
+            # Firmas (sin firma digital para talones dobles, más compactas)
             story.append(Paragraph("FIRMAS", self.styles['Subtitulo']))
             firmas_data = [
                 ["Inquilino (Locatario)", "Inmobiliaria"],
-                ["_" * 30, "_" * 30],
-                ["Firma y aclaración", "Firma y aclaración"]
+                ["_" * 30, "_" * 30]
             ]
             
-            firmas_table = Table(firmas_data, colWidths=[3*inch, 3*inch], rowHeights=[0.3*inch, 0.4*inch, 0.25*inch])
+            firmas_table = Table(firmas_data, colWidths=[3*inch, 3*inch], rowHeights=[0.3*inch, 0.4*inch])
             firmas_table.setStyle(TableStyle([
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
@@ -584,7 +595,7 @@ class ReciboGenerator:
             
             # Separador entre talones (excepto después del último)
             if destinatario == "INQUILINO":
-                story.append(Spacer(1, 10))
+                story.append(Spacer(1, 8))  # Reducido de 10 a 8
                 # Línea divisoria
                 line_data = [["─" * 100]]
                 line_table = Table(line_data, colWidths=[7*inch])
@@ -593,7 +604,7 @@ class ReciboGenerator:
                     ('FONTSIZE', (0, 0), (-1, -1), 8),
                 ]))
                 story.append(line_table)
-                story.append(Spacer(1, 15))  # Aumentado de 10 a 15 para dar más margen al talón de inmobiliaria
+                story.append(Spacer(1, 12))  # Reducido de 15 a 12
         
         return story
 
@@ -625,8 +636,21 @@ class ReciboGenerator:
         filepath_firmado = self.output_dir_firmados / filename
         
         try:
-            # Generar versión SIN FIRMAR (siempre)
-            doc_sin_firmar = SimpleDocTemplate(str(filepath_sin_firmar), pagesize=A4)
+            # Generar versión SIN FIRMAR con márgenes ajustados según medio de pago
+            if medio_pago == 'efectivo':
+                # Márgenes reducidos para talones dobles
+                doc_sin_firmar = SimpleDocTemplate(
+                    str(filepath_sin_firmar), 
+                    pagesize=A4,
+                    topMargin=0.3*inch,     # Reducido de default (1 inch)
+                    bottomMargin=0.3*inch,  # Reducido de default (1 inch)
+                    leftMargin=0.75*inch,   # Mantenemos márgenes laterales
+                    rightMargin=0.75*inch
+                )
+            else:
+                # Márgenes normales para transferencias
+                doc_sin_firmar = SimpleDocTemplate(str(filepath_sin_firmar), pagesize=A4)
+            
             story_sin_firmar = self._create_recibo_unificado(data, medio_pago, incluir_firma=False)
             doc_sin_firmar.build(story_sin_firmar)
             
