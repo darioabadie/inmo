@@ -581,19 +581,71 @@ class ReciboGenerator:
             story.append(desglose_table)
             story.append(Spacer(1, 6))  # Reducido de 8 a 6
             
-            # Información de actualización (más compacta)
+            # Información de actualización (más compacta en 2 columnas)
+            info_actualizacion = []
+            
             actualizacion = data.get('actualizacion', 'NO')
             if actualizacion == 'SI':
                 porc_actual = self._format_percentage(data.get('porc_actual', ''))
                 story.append(Paragraph(f"✓ Actualización aplicada: {porc_actual}", self.styles['TextoRecibo']))
             
             meses_prox_act = data.get('meses_prox_actualizacion', '')
-            if meses_prox_act:
-                story.append(Paragraph(f"Próxima actualización en: {meses_prox_act} meses", self.styles['TextoRecibo']))
-            
             meses_prox_ren = data.get('meses_prox_renovacion', '')
-            if meses_prox_ren:
-                story.append(Paragraph(f"Meses hasta vencimiento: {meses_prox_ren} meses", self.styles['TextoRecibo']))
+            
+            # Crear tabla de 2 columnas para la información de fechas
+            if meses_prox_act or meses_prox_ren:
+                fechas_data = []
+                if meses_prox_act and meses_prox_ren:
+                    fechas_data.append([
+                        f"Próxima actualización en: {meses_prox_act} meses",
+                        f"Meses hasta vencimiento: {meses_prox_ren} meses"
+                    ])
+                elif meses_prox_act:
+                    fechas_data.append([f"Próxima actualización en: {meses_prox_act} meses", ""])
+                elif meses_prox_ren:
+                    fechas_data.append(["", f"Meses hasta vencimiento: {meses_prox_ren} meses"])
+                
+                if fechas_data:
+                    fechas_table = Table(fechas_data, colWidths=[3*inch, 3*inch])
+                    fechas_table.setStyle(TableStyle([
+                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 10),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+                        ('TOPPADDING', (0, 0), (-1, -1), 2),
+                    ]))
+                    story.append(fechas_table)
+            
+            # Información específica para el talón de la inmobiliaria
+            if destinatario == "INMOBILIARIA":
+                story.append(Spacer(1, 4))
+                story.append(Paragraph("INFORMACIÓN PARA INMOBILIARIA", self.styles['Subtitulo']))
+                
+                # Calcular montos
+                precio_descuento = float(data.get('precio_descuento', 0))
+                comision_inmo = float(data.get('comision_inmo', 0))
+                luz = float(data.get('luz', 0))
+                gas = float(data.get('gas', 0))
+                municipalidad = float(data.get('municipalidad', 0))
+                expensas = float(data.get('expensas', 0))
+                cuotas_deposito = float(data.get('cuotas_deposito', 0))
+                cuotas_comision = float(data.get('cuotas_comision', 0))
+                
+                pago_propietario = precio_descuento + luz + gas + municipalidad + expensas + cuotas_deposito - comision_inmo
+                comision_total = comision_inmo + cuotas_comision
+                
+                # Organizar en una sola fila con 2 columnas para ahorrar espacio
+                inmobiliaria_data = [
+                    [f"Comisión inmobiliaria: {self._format_currency(comision_total)}", f"Pago al propietario: {self._format_currency(pago_propietario)}"]
+                ]
+                
+                inmobiliaria_table = Table(inmobiliaria_data, colWidths=[3*inch, 3*inch])
+                inmobiliaria_table.setStyle(TableStyle([
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                ]))
+                story.append(inmobiliaria_table)
             
             # Firmas (sin firma digital para talones dobles, más compactas)
             story.append(Paragraph("FIRMAS", self.styles['Subtitulo']))
@@ -661,8 +713,8 @@ class ReciboGenerator:
                 doc_sin_firmar = SimpleDocTemplate(
                     str(filepath_sin_firmar), 
                     pagesize=A4,
-                    topMargin=0.3*inch,     # Reducido de default (1 inch)
-                    bottomMargin=0.3*inch,  # Reducido de default (1 inch)
+                    topMargin=0.15*inch,    # Reducido a la mitad (de 0.3 a 0.15)
+                    bottomMargin=0.15*inch, # Reducido a la mitad (de 0.3 a 0.15)
                     leftMargin=0.75*inch,   # Mantenemos márgenes laterales
                     rightMargin=0.75*inch
                 )
