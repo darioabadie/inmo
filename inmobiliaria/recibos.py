@@ -335,11 +335,22 @@ class ReciboGenerator:
             story.append(Paragraph("INSTRUCCIONES DE TRANSFERENCIA", self.styles['Subtitulo']))
             
             # Calcular montos para transferencias
-            pago_propietario = float(data.get('pago_prop', 0))
+            # Al propietario va: alquiler + servicios + cuotas_deposito - comision
+            precio_descuento = float(data.get('precio_descuento', 0))
             comision_inmo = float(data.get('comision_inmo', 0))
             
-            # Solo incluir la comisión fraccionada en la transferencia a la inmobiliaria
+            # Servicios adicionales que van al propietario
+            luz = float(data.get('luz', 0))
+            gas = float(data.get('gas', 0))
+            municipalidad = float(data.get('municipalidad', 0))
+            expensas = float(data.get('expensas', 0))
+            cuotas_deposito = float(data.get('cuotas_deposito', 0))
+            
+            # Solo la comisión fraccionada va a la inmobiliaria (además de la comisión normal)
             cuotas_comision = float(data.get('cuotas_comision', 0))
+            
+            # Cálculo correcto: propietario recibe todo menos la comisión de inmobiliaria
+            pago_propietario = precio_descuento + luz + gas + municipalidad + expensas + cuotas_deposito - comision_inmo
             transferencia_inmobiliaria = comision_inmo + cuotas_comision
             
             transferencias_data = [
@@ -575,6 +586,14 @@ class ReciboGenerator:
             if actualizacion == 'SI':
                 porc_actual = self._format_percentage(data.get('porc_actual', ''))
                 story.append(Paragraph(f"✓ Actualización aplicada: {porc_actual}", self.styles['TextoRecibo']))
+            
+            meses_prox_act = data.get('meses_prox_actualizacion', '')
+            if meses_prox_act:
+                story.append(Paragraph(f"Próxima actualización en: {meses_prox_act} meses", self.styles['TextoRecibo']))
+            
+            meses_prox_ren = data.get('meses_prox_renovacion', '')
+            if meses_prox_ren:
+                story.append(Paragraph(f"Meses hasta vencimiento: {meses_prox_ren} meses", self.styles['TextoRecibo']))
             
             # Firmas (sin firma digital para talones dobles, más compactas)
             story.append(Paragraph("FIRMAS", self.styles['Subtitulo']))
