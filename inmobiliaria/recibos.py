@@ -700,11 +700,13 @@ class ReciboGenerator:
         # Crear nombre del archivo
         propietario = self._sanitize_filename(data.get('propietario', 'Sin_Propietario'))
         inquilino = self._sanitize_filename(data.get('inquilino', 'Sin_Inquilino'))
-        filename = f"{propietario}_{inquilino}.pdf"
+        filename_base = f"{propietario}_{inquilino}"
+        filename_sin_firmar = f"{filename_base}.pdf"
+        filename_firmado = f"{filename_base}_firmado.pdf"
         
         # Rutas para ambas versiones
-        filepath_sin_firmar = self.output_dir_sin_firmar / filename
-        filepath_firmado = self.output_dir_firmados / filename
+        filepath_sin_firmar = self.output_dir_sin_firmar / filename_sin_firmar
+        filepath_firmado = self.output_dir_firmados / filename_firmado
         
         try:
             # Generar versión SIN FIRMAR con márgenes ajustados según medio de pago
@@ -743,7 +745,7 @@ class ReciboGenerator:
                 return str(filepath_sin_firmar), str(filepath_firmado)
             
         except Exception as e:
-            logging.error(f"Error generando recibos para {filename}: {e}")
+            logging.error(f"Error generando recibos para {filename_base}.pdf: {e}")
             raise
 
 
