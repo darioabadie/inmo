@@ -148,7 +148,7 @@ class HistoricalService:
         """Crea entidades Propiedad y Contrato desde los datos del maestro."""
         # Validar campos obligatorios
         for field in REQUIRED_FIELDS:
-            if field not in data or not data[field]:
+            if field not in data or data[field] is None or (isinstance(data[field], str) and data[field].strip() == ""):
                 raise ValueError(f"Campo obligatorio faltante: {field}")
         
         propiedad = Propiedad(

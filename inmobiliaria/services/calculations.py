@@ -258,7 +258,9 @@ def calcular_precio_base_acumulado(precio_original: float,
 
 def calcular_comision(comision_str: str, precio_mes: float) -> float:
     try:
-        pct = float(comision_str.strip().replace("%", "").replace(",", "."))
+        if comision_str == 0 or comision_str == "0":
+            return 0.0
+        pct = float(str(comision_str).strip().replace("%", "").replace(",", "."))
         return round(precio_mes * pct / 100, 2)
     except (ValueError, AttributeError):
         raise ValueError(f"Formato de comisión inválido: '{comision_str}'")

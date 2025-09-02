@@ -33,6 +33,21 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _calcular_comision_inmo(precio_descuento: float, comision_inmo_str: str) -> float:
+    """Calcula la comisión de la inmobiliaria."""
+    try:
+        # Manejar el caso especial donde no hay comisión
+        if comision_inmo_str.strip() == "0":
+            return 0.0
+            
+        # Limpiar y convertir el porcentaje
+        porcentaje_str = comision_inmo_str.replace('%', '').replace(',', '.').strip()
+        porcentaje = float(porcentaje_str)
+        return precio_descuento * (porcentaje / 100)
+    except (ValueError, AttributeError):
+        return 0.0
+
+
 def main():
     args = _parse_args()
     y, m = map(int, args.mes.split("-"))
