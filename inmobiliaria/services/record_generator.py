@@ -48,7 +48,8 @@ class MonthlyRecordGenerator:
             precio_descuento,
             context.contrato.comision or "Pagado",
             context.contrato.deposito or "Pagado",
-            context.meses_desde_inicio + 1  # mes_actual 1-based
+            context.meses_desde_inicio + 1,  # mes_actual 1-based
+            context.monto_comision  # Monto fijo de comisión (opcional)
         )
         
         cuotas_adicionales = float(cuotas_detalle['total_cuotas'])
@@ -118,7 +119,8 @@ class MonthlyRecordGenerator:
                                 luz: float = 0.0,
                                 gas: float = 0.0,
                                 expensas: float = 0.0,
-                                descuento_porcentaje: float = 0.0) -> CalculationContext:
+                                descuento_porcentaje: float = 0.0,
+                                monto_comision: float = None) -> CalculationContext:
         """
         Crea un contexto de cálculo para un mes específico.
         
@@ -133,6 +135,7 @@ class MonthlyRecordGenerator:
             gas: Gastos de gas
             expensas: Expensas
             descuento_porcentaje: Porcentaje de descuento
+            monto_comision: Monto fijo de comisión del inquilino (opcional)
             
         Returns:
             CalculationContext configurado para el mes
@@ -157,6 +160,7 @@ class MonthlyRecordGenerator:
             gas=gas,
             expensas=expensas,
             descuento_porcentaje=descuento_porcentaje,
+            monto_comision=monto_comision,
             inflacion_df=inflacion_df
         )
     

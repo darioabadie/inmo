@@ -188,7 +188,8 @@ class HistoricalService:
             "luz": safe_float(data.get("luz")),
             "gas": safe_float(data.get("gas")),
             "expensas": safe_float(data.get("expensas")),
-            "descuento_porcentaje": safe_percentage(data.get("descuento"))
+            "descuento_porcentaje": safe_percentage(data.get("descuento")),
+            "monto_comision": safe_float(data.get("monto_comision"), default=None)
         }
     
     def _determine_starting_point(self, 

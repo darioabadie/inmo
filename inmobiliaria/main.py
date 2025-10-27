@@ -136,11 +136,21 @@ def main():
 
             # Calcular otros valores
             comision = calcular_comision(contrato.comision_inmo, precio_base)
+            
+            # Obtener monto_comision de la fila (opcional)
+            monto_comision = None
+            if fila.get("monto_comision"):
+                try:
+                    monto_comision = float(fila.get("monto_comision"))
+                except (ValueError, TypeError):
+                    monto_comision = None
+            
             cuotas_adicionales = calcular_cuotas_adicionales(
                 precio_base,
                 contrato.comision or "Pagado",
                 contrato.deposito or "Pagado",
-                meses_desde_inicio + 1  # mes_actual 1-based
+                meses_desde_inicio + 1,  # mes_actual 1-based
+                monto_comision  # Monto fijo de comisión (opcional)
             )
             municipalidad = float(fila.get("municipalidad", 0)) if fila.get("municipalidad") else 0
             pago_prop = round(precio_base - comision, 2)

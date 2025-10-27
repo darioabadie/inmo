@@ -137,6 +137,7 @@ La hoja de Google Sheets debe tener una hoja llamada `administracion` con las si
 - `prop_dni` (DNI del propietario)
 - `comision` ("Pagado", "2 cuotas", "3 cuotas") - default: "Pagado"
 - `deposito` ("Pagado", "2 cuotas", "3 cuotas") - default: "Pagado"
+- `monto_comision` (monto fijo de comisión del inquilino, opcional)
 - `municipalidad` (monto fijo mensual) - default: 0
 - `luz` (monto fijo mensual de servicio de luz) - default: 0
 - `gas` (monto fijo mensual de servicio de gas) - default: 0
@@ -146,22 +147,63 @@ La hoja de Google Sheets debe tener una hoja llamada `administracion` con las si
 
 ### Funcionalidad de Comisión y Depósito en Cuotas
 
-Las columnas `comision` y `deposito` permiten configurar el pago fraccionado de estos conceptos:
+Las columnas `comision`, `deposito` y `monto_comision` permiten configurar el pago fraccionado de estos conceptos:
 
-- **"Pagado"**: La comisión/depósito ya fue pagado por separado, no se suma al alquiler mensual
+#### Configuración de Comisión
+
+- **"Pagado"**: La comisión ya fue pagada por separado, no se suma al alquiler mensual
 - **"2 cuotas"**: Se divide el monto en 2 partes iguales y se suma a los primeros 2 meses
 - **"3 cuotas"**: Se divide el monto en 3 partes iguales y se suma a los primeros 3 meses
 
-**NUEVO - Interés en Comisión Fraccionada**:
-- **Comisión en 2 cuotas**: Se aplica 10% de interés → Total: precio_base × 1.10
-- **Comisión en 3 cuotas**: Se aplica 20% de interés → Total: precio_base × 1.20
-- **Depósito**: Se mantiene sin interés
+**Monto de Comisión**:
+- **Sin `monto_comision`**: Usa el `precio_original` como base (equivalente a 1 mes de alquiler)
+- **Con `monto_comision`**: Usa el monto fijo especificado (permite negociaciones personalizadas)
 
-**Ejemplo**: Si el alquiler base es $300,000, comisión "3 cuotas" y depósito "2 cuotas":
-- Mes 1: $300,000 + $120,000 (comisión c/interés) + $150,000 (depósito) = $570,000
-- Mes 2: $300,000 + $120,000 (comisión c/interés) + $150,000 (depósito) = $570,000  
-- Mes 3: $300,000 + $120,000 (comisión c/interés) + $0 (depósito) = $420,000
-- Mes 4 en adelante: $300,000
+**Importante**: La comisión fraccionada **NO aplica intereses**. El monto se divide directamente en las cuotas especificadas.
+
+#### Configuración de Depósito
+
+- **"Pagado"**: El depósito ya fue pagado por separado
+- **"2 cuotas"**: Se divide el `precio_original` en 2 partes iguales
+- **"3 cuotas"**: Se divide el `precio_original` en 3 partes iguales
+
+**Nota**: El depósito siempre usa el `precio_original` como base, no `monto_comision`.
+
+#### Ejemplos
+
+**Ejemplo 1 - Comisión con monto fijo en 2 cuotas**:
+```
+precio_original: $300,000
+monto_comision: $250,000 (monto negociado)
+comision: "2 cuotas"
+deposito: "Pagado"
+```
+- Mes 1: $300,000 + $125,000 (comisión) = $425,000
+- Mes 2: $300,000 + $125,000 (comisión) = $425,000
+- Mes 3+: $300,000
+
+**Ejemplo 2 - Sin monto_comision (usa precio_original)**:
+```
+precio_original: $300,000
+monto_comision: [vacío]
+comision: "2 cuotas"
+deposito: "Pagado"
+```
+- Mes 1: $300,000 + $150,000 (comisión) = $450,000
+- Mes 2: $300,000 + $150,000 (comisión) = $450,000
+- Mes 3+: $300,000
+
+**Ejemplo 3 - Comisión y depósito combinados**:
+```
+precio_original: $300,000
+monto_comision: $200,000
+comision: "3 cuotas"
+deposito: "2 cuotas"
+```
+- Mes 1: $300,000 + $66,667 (comisión) + $150,000 (depósito) = $516,667
+- Mes 2: $300,000 + $66,667 (comisión) + $150,000 (depósito) = $516,667
+- Mes 3: $300,000 + $66,667 (comisión) + $0 (depósito) = $366,667
+- Mes 4+: $300,000
 
 ### Servicios Fijos (Municipalidad, Luz, Gas, Expensas)
 
@@ -349,7 +391,9 @@ Los tests garantizan que:
   - `HistoricalCalculations`: Cálculos especializados de actualización
 
 ### Tipos de Comisiones
-- **`comision`**: Comisión que paga el **inquilino** (equivale a 1 mes de alquiler)
+- **`comision`**: Comisión que paga el **inquilino** al inicio del contrato
+  - Si `monto_comision` está especificado: usa ese monto fijo
+  - Si `monto_comision` está vacío: equivale a 1 mes de alquiler (`precio_original`)
 - **`comision_inmo`**: Porcentaje de comisión de administración que se descuenta del pago al **propietario**
 
 ### Actualización de Precios

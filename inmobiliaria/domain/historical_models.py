@@ -106,6 +106,7 @@ class CalculationContext:
     gas: float = 0.0
     expensas: float = 0.0
     descuento_porcentaje: float = 0.0
+    monto_comision: float = None  # Monto fijo de comisión del inquilino (opcional)
     
     # Datos externos
     inflacion_df: Any = None         # DataFrame con datos de inflación
