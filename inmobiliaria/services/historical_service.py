@@ -148,14 +148,17 @@ class HistoricalService:
         """Crea entidades Propiedad y Contrato desde los datos del maestro."""
         # Validar campos obligatorios
         for field in REQUIRED_FIELDS:
-            if field not in data or not data[field]:
+            if field not in data or data[field] is None or (isinstance(data[field], str) and data[field].strip() == ""):
                 raise ValueError(f"Campo obligatorio faltante: {field}")
         
         propiedad = Propiedad(
             nombre=str(data["nombre_inmueble"]),
             direccion=str(data["dir_inmueble"]),
             propietario=str(data["propietario"]),
-            inquilino=str(data["inquilino"])
+            inquilino=str(data["inquilino"]),
+            nis=str(data.get("N_NIS") or "0"),
+            gas_nro=str(data.get("N_GAS") or "0"),
+            padron=str(data.get("N_PADRON") or "0")
         )
         
         contrato = Contrato(
@@ -188,7 +191,8 @@ class HistoricalService:
             "luz": safe_float(data.get("luz")),
             "gas": safe_float(data.get("gas")),
             "expensas": safe_float(data.get("expensas")),
-            "descuento_porcentaje": safe_percentage(data.get("descuento"))
+            "descuento_porcentaje": safe_percentage(data.get("descuento")),
+            "monto_comision": safe_float(data.get("monto_comision"), default=None)
         }
     
     def _determine_starting_point(self, 

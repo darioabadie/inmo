@@ -8,6 +8,7 @@ from typing import Dict
 from ..domain.historical_models import HistoricalRecord, CalculationContext
 from ..services.calculations import calcular_comision, calcular_cuotas_detalladas
 from .historical_calculations import HistoricalCalculations
+from dateutil.relativedelta import relativedelta
 
 
 class MonthlyRecordGenerator:
@@ -48,7 +49,8 @@ class MonthlyRecordGenerator:
             precio_descuento,
             context.contrato.comision or "Pagado",
             context.contrato.deposito or "Pagado",
-            context.meses_desde_inicio + 1  # mes_actual 1-based
+            context.meses_desde_inicio + 1,  # mes_actual 1-based
+            context.monto_comision  # Monto fijo de comisión (opcional)
         )
         
         cuotas_adicionales = float(cuotas_detalle['total_cuotas'])
@@ -68,7 +70,11 @@ class MonthlyRecordGenerator:
         porc_actual_output = porc_actual if aplica_actualizacion else ""
         descuento_str = f"{context.descuento_porcentaje:.1f}%"
         
-        # 8. Crear el registro completo
+        # 8. Calcular vencimiento contrato
+        fecha_vencimiento = context.fecha_inicio_contrato + relativedelta(months=context.contrato.duracion_meses) - relativedelta(days=1)
+        vencimiento_str = fecha_vencimiento.strftime("%Y-%m-%d")
+
+        # 9. Crear el registro completo
         return HistoricalRecord(
             # Campos de identificación
             nombre_inmueble=context.propiedad.nombre,
@@ -76,6 +82,12 @@ class MonthlyRecordGenerator:
             inquilino=context.propiedad.inquilino,
             propietario=context.propiedad.propietario,
             mes_actual=context.mes_actual_str,
+            
+            # Nuevos campos
+            nis=context.propiedad.nis,
+            gas_nro=context.propiedad.gas_nro,
+            padron=context.propiedad.padron,
+            vencimiento_contrato=vencimiento_str,
             
             # Campos de precios principales
             precio_final=precio_final,
@@ -118,7 +130,8 @@ class MonthlyRecordGenerator:
                                 luz: float = 0.0,
                                 gas: float = 0.0,
                                 expensas: float = 0.0,
-                                descuento_porcentaje: float = 0.0) -> CalculationContext:
+                                descuento_porcentaje: float = 0.0,
+                                monto_comision: float = None) -> CalculationContext:
         """
         Crea un contexto de cálculo para un mes específico.
         
@@ -133,6 +146,7 @@ class MonthlyRecordGenerator:
             gas: Gastos de gas
             expensas: Expensas
             descuento_porcentaje: Porcentaje de descuento
+            monto_comision: Monto fijo de comisión del inquilino (opcional)
             
         Returns:
             CalculationContext configurado para el mes
@@ -157,6 +171,7 @@ class MonthlyRecordGenerator:
             gas=gas,
             expensas=expensas,
             descuento_porcentaje=descuento_porcentaje,
+            monto_comision=monto_comision,
             inflacion_df=inflacion_df
         )
     
