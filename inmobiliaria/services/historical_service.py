@@ -155,7 +155,10 @@ class HistoricalService:
             nombre=str(data["nombre_inmueble"]),
             direccion=str(data["dir_inmueble"]),
             propietario=str(data["propietario"]),
-            inquilino=str(data["inquilino"])
+            inquilino=str(data["inquilino"]),
+            nis=str(data.get("N_NIS") or "0"),
+            gas_nro=str(data.get("N_GAS") or "0"),
+            padron=str(data.get("N_PADRON") or "0")
         )
         
         contrato = Contrato(

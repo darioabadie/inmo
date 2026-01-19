@@ -241,13 +241,13 @@ class ReciboGenerator:
         
         # Información básica
         info_data = [
-            ["Dirección:", data.get('dir_inmueble', '')],
-            ["Inquilino:", data.get('inquilino', '')],
-            ["Propietario:", data.get('propietario', '')],
-            ["Mes:", self.mes_periodo],
+            ["Dirección:", data.get('dir_inmueble', ''), "NIS:", data.get('nis', '')],
+            ["Inquilino:", data.get('inquilino', ''), "GAS:", data.get('gas_nro', '')],
+            ["Propietario:", data.get('propietario', ''), "PADRON:", data.get('padron', '')],
+            ["Mes:", self.mes_periodo, "", ""],
         ]
         
-        info_table = Table(info_data, colWidths=[2*inch, 4*inch])
+        info_table = Table(info_data, colWidths=[1.3*inch, 2.7*inch, 0.7*inch, 1.3*inch])
         info_table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
@@ -393,6 +393,9 @@ class ReciboGenerator:
         meses_prox_ren = data.get('meses_prox_renovacion', '')
         if meses_prox_ren:
             story.append(Paragraph(f"Meses hasta vencimiento: {meses_prox_ren} meses", self.styles['TextoRecibo']))
+            ven_contrato = data.get('vencimiento_contrato', '')
+            if ven_contrato:
+                story.append(Paragraph(f"Vencimiento de contrato: {ven_contrato}", self.styles['TextoRecibo']))
         
         story.append(Spacer(1, 8))  # Reducido de 15
         

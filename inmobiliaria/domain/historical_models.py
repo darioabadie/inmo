@@ -21,6 +21,14 @@ class HistoricalRecord:
     propietario: str
     mes_actual: str  # Formato: YYYY-MM
     
+    # Nuevos campos de identificación de servicios
+    nis: str
+    gas_nro: str
+    padron: str
+    
+    # Nuevo campo de fecha
+    vencimiento_contrato: str  # Formato: YYYY-MM-DD
+    
     # Campos de precios principales
     precio_final: float          # Total que paga el inquilino
     precio_original: float       # Precio base actualizado por inflación
@@ -59,6 +67,10 @@ class HistoricalRecord:
             "inquilino": self.inquilino,
             "propietario": self.propietario,
             "mes_actual": self.mes_actual,
+            "nis": self.nis,
+            "gas_nro": self.gas_nro,
+            "padron": self.padron,
+            "vencimiento_contrato": self.vencimiento_contrato,
             "precio_final": self.precio_final,
             "precio_original": self.precio_original,
             "precio_descuento": self.precio_descuento,

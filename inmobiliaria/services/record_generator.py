@@ -8,6 +8,7 @@ from typing import Dict
 from ..domain.historical_models import HistoricalRecord, CalculationContext
 from ..services.calculations import calcular_comision, calcular_cuotas_detalladas
 from .historical_calculations import HistoricalCalculations
+from dateutil.relativedelta import relativedelta
 
 
 class MonthlyRecordGenerator:
@@ -69,7 +70,11 @@ class MonthlyRecordGenerator:
         porc_actual_output = porc_actual if aplica_actualizacion else ""
         descuento_str = f"{context.descuento_porcentaje:.1f}%"
         
-        # 8. Crear el registro completo
+        # 8. Calcular vencimiento contrato
+        fecha_vencimiento = context.fecha_inicio_contrato + relativedelta(months=context.contrato.duracion_meses) - relativedelta(days=1)
+        vencimiento_str = fecha_vencimiento.strftime("%Y-%m-%d")
+
+        # 9. Crear el registro completo
         return HistoricalRecord(
             # Campos de identificación
             nombre_inmueble=context.propiedad.nombre,
@@ -77,6 +82,12 @@ class MonthlyRecordGenerator:
             inquilino=context.propiedad.inquilino,
             propietario=context.propiedad.propietario,
             mes_actual=context.mes_actual_str,
+            
+            # Nuevos campos
+            nis=context.propiedad.nis,
+            gas_nro=context.propiedad.gas_nro,
+            padron=context.propiedad.padron,
+            vencimiento_contrato=vencimiento_str,
             
             # Campos de precios principales
             precio_final=precio_final,

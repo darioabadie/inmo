@@ -10,6 +10,9 @@ class Propiedad:
     direccion: str
     propietario: str
     inquilino: str
+    nis: Optional[str] = ""
+    gas_nro: Optional[str] = ""
+    padron: Optional[str] = ""
     # Agregar más campos según necesidad
 
 @dataclass
