@@ -104,6 +104,14 @@ def main():
         error_logger.error(f"RESUMEN: {len(summary.errores)} errores encontrados durante generación de historial hasta {args.hasta}")
     else:
         print("✓ Historial generado sin errores")
+    
+    # Mostrar resumen de contratos si aplica
+    if hasattr(summary, 'contratos_vencidos') and (summary.contratos_vencidos > 0 or summary.contratos_proximos_vencer > 0):
+        print(f"\n📋 Resumen de contratos guardado en: resumen_contratos_{dt.date.today():%Y-%m-%d}.txt")
+        print(f"   - Contratos vencidos: {summary.contratos_vencidos}")
+        print(f"   - Contratos por vencer: {summary.contratos_proximos_vencer}")
+    else:
+        print("\n📋 No se encontraron contratos vencidos ni próximos a vencer")
 
 
 if __name__ == "__main__":

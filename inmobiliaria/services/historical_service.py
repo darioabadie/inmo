@@ -4,7 +4,37 @@ Orquesta todos los componentes y maneja el flujo principal de procesamiento.
 """
 import datetime as dt
 import logging
+import os
 from typing import List, Dict, Optional
+
+try:
+    from dateutil.relativedelta import relativedelta
+except ImportError:
+    # Implementación simple de relativedelta para manejar meses
+    class relativedelta:
+        def __init__(self, months=0, days=0):
+            self.months = months
+            self.days = days
+        
+        def __radd__(self, date):
+            # Añadir meses
+            year = date.year + (date.month - 1 + self.months) // 12
+            month = (date.month - 1 + self.months) % 12 + 1
+            day = date.day
+            
+            # Ajustar día si el mes tiene menos días
+            import calendar
+            max_day = calendar.monthrange(year, month)[1]
+            if day > max_day:
+                day = max_day
+            
+            result = dt.date(year, month, day)
+            
+            # Añadir días
+            if self.days != 0:
+                result = result + dt.timedelta(days=self.days)
+            
+            return result
 
 from ..constants import DEFAULT_VALUES, REQUIRED_FIELDS
 from ..domain.historical_models import HistoricalRecord, HistoricalSummary, PropertyHistoricalData
@@ -51,6 +81,10 @@ class HistoricalService:
         
         logging.warning("[INICIO] Cargando datos de inflación...")
         inflacion_df = traer_inflacion()
+        
+        # Analizar estado de contratos
+        fecha_actual = dt.date.today()
+        self.analyze_contracts_status(fecha_limite, fecha_actual)
         
         logging.warning("[INICIO] Leyendo historial existente...")
         historico_existente = self.data_manager.read_existing_historical()
@@ -271,3 +305,119 @@ class HistoricalService:
             fecha_actual = self.calculations.get_next_month_date(fecha_actual)
         
         return registros
+    
+    def analyze_contracts_status(self, fecha_limite: dt.date, fecha_actual: dt.date):
+        """
+        Analiza el estado de todos los contratos y actualiza el summary.
+        
+        Args:
+            fecha_limite: Fecha límite del procesamiento histórico
+            fecha_actual: Fecha actual para determinar estado de contratos
+        """
+        logging.warning("[CONTRATOS] Analizando estado de contratos...")
+        
+        # Cargar datos del maestro para análisis de contratos
+        maestro_data = self.data_manager.load_maestro_data()
+        
+        # Fecha límite para contratos próximos a vencer (3 meses desde fecha_actual)
+        fecha_limite_proximos = fecha_actual + relativedelta(months=3)
+        
+        for fila in maestro_data:
+            try:
+                status, detalle = self._determine_contract_status(fila, fecha_actual, fecha_limite_proximos)
+                
+                if status == "VENCIDO":
+                    self.summary.add_contract_vencido(detalle)
+                elif status == "PROXIMO_VENCER":
+                    self.summary.add_contract_proximo_vencer(detalle)
+                    
+            except Exception as e:
+                nombre_propiedad = fila.get("nombre_inmueble", "Desconocido")
+                logging.warning(f"[ERROR CONTRATO] No se pudo analizar {nombre_propiedad}: {e}")
+        
+        # Generar archivo de resumen si hay contratos relevantes
+        if (self.summary.contratos_vencidos > 0 or self.summary.contratos_proximos_vencer > 0):
+            self._save_contract_summary_file(fecha_actual)
+        
+        logging.warning(f"[CONTRATOS] Análisis completado: {self.summary.contratos_vencidos} vencidos, {self.summary.contratos_proximos_vencer} próximos a vencer")
+    
+    def _determine_contract_status(self, fila: Dict, fecha_actual: dt.date, fecha_limite_proximos: dt.date) -> tuple:
+        """
+        Determina el estado de un contrato y retorna el detalle básico.
+        
+        Args:
+            fila: Datos del contrato del maestro
+            fecha_actual: Fecha actual
+            fecha_limite_proximos: Fecha límite para considerar "próximo a vencer"
+            
+        Returns:
+            Tuple[status, detalle_basico] donde status puede ser "VENCIDO", "PROXIMO_VENCER" o "ACTIVO"
+        """
+        # Validar campos obligatorios
+        if not fila.get("nombre_inmueble") or not fila.get("fecha_inicio_contrato") or not fila.get("duracion_meses"):
+            return "ACTIVO", {}  # No se puede determinar, tratar como activo
+        
+        # Calcular fecha de vencimiento
+        fecha_inicio = dt.datetime.strptime(fila["fecha_inicio_contrato"], "%Y-%m-%d").date()
+        duracion = int(fila["duracion_meses"])
+        
+        # Restar 1 día porque el último día del contrato no cuenta
+        fecha_vencimiento = fecha_inicio + relativedelta(months=duracion) - dt.timedelta(days=1)
+        
+        # Determinar estado
+        if fecha_vencimiento <= fecha_actual:
+            status = "VENCIDO"
+        elif fecha_vencimiento <= fecha_limite_proximos:
+            status = "PROXIMO_VENCER"
+        else:
+            status = "ACTIVO"
+        
+        # Crear detalle básico
+        detalle = {
+            'nombre_inmueble': str(fila.get("nombre_inmueble", "")),
+            'inquilino': str(fila.get("inquilino", "")),
+            'fecha_vencimiento': fecha_vencimiento.strftime("%Y-%m-%d")
+        }
+        
+        return status, detalle
+    
+    def _save_contract_summary_file(self, fecha_actual: dt.date):
+        """
+        Guarda el resumen de contratos en un archivo de texto.
+        
+        Args:
+            fecha_actual: Fecha actual para nombrar el archivo
+        """
+        filename = f"resumen_contratos_{fecha_actual.strftime('%Y-%m-%d')}.txt"
+        
+        try:
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write(f"RESUMEN DE CONTRATOS - {fecha_actual.strftime('%Y-%m-%d')}\n")
+                f.write("=" * 55 + "\n\n")
+                
+                # Contratos vencidos
+                if self.summary.contratos_vencidos > 0:
+                    f.write(f"CONTRATOS VENCIDOS: {self.summary.contratos_vencidos}\n")
+                    f.write("-" * 20 + "\n")
+                    for contrato in self.summary.detalle_contratos_vencidos:
+                        f.write(f"- {contrato['nombre_inmueble']} ({contrato['inquilino']}) - Venció: {contrato['fecha_vencimiento']}\n")
+                    f.write("\n")
+                
+                # Contratos próximos a vencer
+                if self.summary.contratos_proximos_vencer > 0:
+                    f.write(f"CONTRATOS POR VENCER (próximos 3 meses): {self.summary.contratos_proximos_vencer}\n")
+                    f.write("-" * 50 + "\n")
+                    for contrato in self.summary.detalle_contratos_proximos_vencer:
+                        f.write(f"- {contrato['nombre_inmueble']} ({contrato['inquilino']}) - Vence: {contrato['fecha_vencimiento']}\n")
+                    f.write("\n")
+                
+                # Total de propiedades analizadas
+                total_analizadas = self.summary.contratos_vencidos + self.summary.contratos_proximos_vencer
+                f.write(f"TOTAL PROPIEDADES CON CONTRATOS RELEVANTES: {total_analizadas}\n")
+            
+            logging.warning(f"[CONTRATOS] Resumen guardado en: {filename}")
+            
+        except Exception as e:
+            logging.error(f"[ERROR] No se pudo guardar el archivo de resumen: {e}")
+            if self.error_logger:
+                self.error_logger.error(f"Error guardando resumen de contratos: {e}")

@@ -3,7 +3,7 @@ Modelos especializados para el historial de pagos inmobiliarios.
 """
 import datetime as dt
 from dataclasses import dataclass
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 
 
 @dataclass
@@ -152,9 +152,19 @@ class HistoricalSummary:
     fecha_limite: Optional[dt.date] = None
     errores: Optional[List[str]] = None
     
+    # Nuevos campos para resumen de contratos
+    contratos_vencidos: int = 0
+    contratos_proximos_vencer: int = 0
+    detalle_contratos_vencidos: Optional[List[Dict]] = None
+    detalle_contratos_proximos_vencer: Optional[List[Dict]] = None
+    
     def __post_init__(self):
         if self.errores is None:
             self.errores = []
+        if self.detalle_contratos_vencidos is None:
+            self.detalle_contratos_vencidos = []
+        if self.detalle_contratos_proximos_vencer is None:
+            self.detalle_contratos_proximos_vencer = []
     
     def add_error(self, propiedad: str, error: str):
         """Agrega un error al resumen."""
@@ -172,14 +182,25 @@ class HistoricalSummary:
         """Agrega registros al total."""
         self.total_registros += cantidad
     
+    def add_contract_vencido(self, detalle: Dict):
+        """Agrega un contrato vencido al resumen."""
+        self.contratos_vencidos += 1
+        self.detalle_contratos_vencidos.append(detalle)
+    
+    def add_contract_proximo_vencer(self, detalle: Dict):
+        """Agrega un contrato próximo a vencer al resumen."""
+        self.contratos_proximos_vencer += 1
+        self.detalle_contratos_proximos_vencer.append(detalle)
+    
     def __str__(self) -> str:
         """Representación en string del resumen."""
+        errores_count = len(self.errores) if self.errores else 0
         return (
             f"Historial generado hasta {self.fecha_limite.strftime('%Y-%m') if self.fecha_limite else 'N/A'}\n"
             f"Total registros: {self.total_registros}\n"
             f"Propiedades procesadas: {self.propiedades_procesadas}\n"
             f"Propiedades omitidas: {self.propiedades_omitidas}\n"
-            f"Errores: {len(self.errores)}"
+            f"Errores: {errores_count}"
         )
 
 
