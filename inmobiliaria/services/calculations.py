@@ -158,6 +158,8 @@ def calcular_factor_icl_acumulado_detallado(precio_original: float,
 Funciones de cálculo de precios, comisiones y cuotas adicionales.
 """
 import datetime as dt
+from typing import Optional
+
 import pandas as pd
 import requests
 from .inflation import inflacion_acumulada
@@ -269,7 +271,7 @@ def calcular_cuotas_adicionales(precio_base: float,
                                comision_inquilino: str, 
                                deposito: str, 
                                mes_actual: int,
-                               monto_comision: float = None) -> float:
+                               monto_comision: Optional[float] = None) -> float:
     monto_adicional = 0.0
     
     # Determinar monto base para comisión: monto_comision si existe, sino precio_base
@@ -290,14 +292,14 @@ def calcular_cuotas_adicionales(precio_base: float,
     return round(monto_adicional, 2)
 
 
-from typing import Dict, Union
+from typing import Dict, Union, Optional
 
 
 def calcular_cuotas_detalladas(precio_base: float, 
                               comision_inquilino: str, 
                               deposito: str, 
                               mes_actual: int,
-                              monto_comision: float = None) -> Dict[str, Union[float, str]]:
+                              monto_comision: Optional[float] = None) -> Dict[str, Union[float, str]]:
     """
     Calcula las cuotas adicionales con detalle separado de comisión y depósito.
     

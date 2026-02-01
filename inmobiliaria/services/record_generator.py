@@ -3,7 +3,7 @@ Generador de registros mensuales individuales.
 Responsable de crear un HistoricalRecord completo para un mes específico.
 """
 import logging
-from typing import Dict
+from typing import Dict, Optional
 
 from ..domain.historical_models import HistoricalRecord, CalculationContext
 from ..services.calculations import calcular_comision, calcular_cuotas_detalladas
@@ -41,8 +41,8 @@ class MonthlyRecordGenerator:
         factor_descuento = 1 - (context.descuento_porcentaje / 100)
         precio_descuento = round(precio_base_actualizado * factor_descuento, 2)
         
-        # 3. Calcular comisión inmobiliaria
-        comision_inmo = calcular_comision(context.contrato.comision_inmo, precio_descuento)
+        # 3. Calcular comisión inmobiliaria sobre alquiler
+        comision_inmo_alquiler = calcular_comision(context.contrato.comision_inmo, precio_descuento)
         
         # 4. Calcular cuotas adicionales con detalle
         cuotas_detalle = calcular_cuotas_detalladas(
@@ -57,9 +57,25 @@ class MonthlyRecordGenerator:
         cuotas_comision = float(cuotas_detalle['cuotas_comision'])
         cuotas_deposito = float(cuotas_detalle['cuotas_deposito'])
         detalle_cuotas = str(cuotas_detalle['detalle_descripcion'])
+
+        # 4.1 Calcular comisión inmobiliaria sobre depósito (si aplica)
+        comision_inmo_deposito = 0.0
+        if cuotas_deposito > 0:
+            comision_inmo_deposito = calcular_comision(context.contrato.comision_inmo, cuotas_deposito)
+
+        comision_inmo = round(comision_inmo_alquiler + comision_inmo_deposito, 2)
         
         # 5. Calcular pagos finales
-        pago_prop = round(precio_descuento - comision_inmo, 2)
+        pago_prop = round(
+            precio_descuento
+            + cuotas_deposito
+            + context.municipalidad
+            + context.luz
+            + context.gas
+            + context.expensas
+            - comision_inmo,
+            2
+        )
         precio_final = precio_descuento + cuotas_adicionales + context.municipalidad + context.luz + context.gas + context.expensas
         
         # 6. Calcular proximidades
@@ -131,7 +147,7 @@ class MonthlyRecordGenerator:
                                 gas: float = 0.0,
                                 expensas: float = 0.0,
                                 descuento_porcentaje: float = 0.0,
-                                monto_comision: float = None) -> CalculationContext:
+                                monto_comision: Optional[float] = None) -> CalculationContext:
         """
         Crea un contexto de cálculo para un mes específico.
         

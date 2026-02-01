@@ -16,7 +16,7 @@ from .models import Propiedad, Contrato, Pago
 from . import utils
 from .services.google_sheets import get_gspread_client
 from .services.inflation import traer_inflacion
-from .services.calculations import precio_ajustado, calcular_comision, calcular_cuotas_adicionales, traer_factor_icl, calcular_precio_base_acumulado
+from .services.calculations import precio_ajustado, calcular_comision, calcular_cuotas_detalladas, traer_factor_icl, calcular_precio_base_acumulado
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -135,25 +135,30 @@ def main():
             meses_prox_renovacion = max(0, contrato.duracion_meses - meses_desde_inicio)
 
             # Calcular otros valores
-            comision = calcular_comision(contrato.comision_inmo, precio_base)
+            comision_alquiler = calcular_comision(contrato.comision_inmo, precio_base)
             
             # Obtener monto_comision de la fila (opcional)
             monto_comision = None
-            if fila.get("monto_comision"):
+            monto_raw = fila.get("monto_comision")
+            if monto_raw is not None and str(monto_raw).strip():
                 try:
-                    monto_comision = float(fila.get("monto_comision"))
+                    monto_comision = float(monto_raw)
                 except (ValueError, TypeError):
                     monto_comision = None
             
-            cuotas_adicionales = calcular_cuotas_adicionales(
+            cuotas_detalle = calcular_cuotas_detalladas(
                 precio_base,
                 contrato.comision or "Pagado",
                 contrato.deposito or "Pagado",
                 meses_desde_inicio + 1,  # mes_actual 1-based
                 monto_comision  # Monto fijo de comisión (opcional)
             )
+            cuotas_adicionales = float(cuotas_detalle['total_cuotas'])
+            cuotas_deposito = float(cuotas_detalle['cuotas_deposito'])
+            comision_deposito = calcular_comision(contrato.comision_inmo, cuotas_deposito) if cuotas_deposito > 0 else 0.0
+            comision = round(comision_alquiler + comision_deposito, 2)
             municipalidad = float(fila.get("municipalidad", 0)) if fila.get("municipalidad") else 0
-            pago_prop = round(precio_base - comision, 2)
+            pago_prop = round(precio_base + cuotas_deposito - comision, 2)
             precio_mes_actual = precio_base + cuotas_adicionales + municipalidad
             pago = Pago(
                 mes=args.mes,

@@ -39,8 +39,8 @@ class HistoricalDataManager:
             historico_por_propiedad = {}
             
             for registro in registros_existentes:
-                nombre = registro.get("nombre_inmueble", "")
-                mes = registro.get("mes_actual", "")
+                nombre = str(registro.get("nombre_inmueble", ""))
+                mes = str(registro.get("mes_actual", ""))
                 # Intentar leer precio_original primero, si no existe usar precio_base (compatibilidad)
                 precio_base = float(registro.get("precio_original", 0)) or float(registro.get("precio_base", 0))
                 
@@ -65,6 +65,17 @@ class HistoricalDataManager:
         except Exception as e:
             logging.warning(f"[HISTORICO] No se pudo leer historico existente: {e}")
             return {}
+
+    def reset_historical_sheet(self) -> None:
+        """Elimina la hoja 'historico' si existe para regenerar desde cero."""
+        sheet_name = SHEET_CONFIG["historico_sheet_name"]
+
+        try:
+            ws_historico = self.sheet.worksheet(sheet_name)
+            self.sheet.del_worksheet(ws_historico)
+            logging.warning(f"[HISTORICO] Hoja '{sheet_name}' eliminada para regenerar desde cero")
+        except Exception as e:
+            logging.warning(f"[HISTORICO] No se pudo eliminar hoja '{sheet_name}': {e}")
     
     def write_historical_records(self, records: List[HistoricalRecord]) -> None:
         """

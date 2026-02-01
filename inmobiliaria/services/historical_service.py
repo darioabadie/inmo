@@ -86,6 +86,9 @@ class HistoricalService:
         fecha_actual = dt.date.today()
         self.analyze_contracts_status(fecha_limite, fecha_actual)
         
+        logging.warning("[INICIO] Reseteando hoja historico...")
+        self.data_manager.reset_historical_sheet()
+
         logging.warning("[INICIO] Leyendo historial existente...")
         historico_existente = self.data_manager.read_existing_historical()
         

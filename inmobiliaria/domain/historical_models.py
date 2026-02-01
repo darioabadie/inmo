@@ -1,8 +1,10 @@
 """
 Modelos especializados para el historial de pagos inmobiliarios.
 """
+
+from __future__ import annotations
 import datetime as dt
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, List, Any, Dict
 
 
@@ -118,7 +120,7 @@ class CalculationContext:
     gas: float = 0.0
     expensas: float = 0.0
     descuento_porcentaje: float = 0.0
-    monto_comision: float = None  # Monto fijo de comisión del inquilino (opcional)
+    monto_comision: Optional[float] = None  # Monto fijo de comisión del inquilino (opcional)
     
     # Datos externos
     inflacion_df: Any = None         # DataFrame con datos de inflación
@@ -150,21 +152,13 @@ class HistoricalSummary:
     propiedades_procesadas: int = 0
     propiedades_omitidas: int = 0
     fecha_limite: Optional[dt.date] = None
-    errores: Optional[List[str]] = None
+    errores: list[str] = field(default_factory=list)
     
     # Nuevos campos para resumen de contratos
     contratos_vencidos: int = 0
     contratos_proximos_vencer: int = 0
-    detalle_contratos_vencidos: Optional[List[Dict]] = None
-    detalle_contratos_proximos_vencer: Optional[List[Dict]] = None
-    
-    def __post_init__(self):
-        if self.errores is None:
-            self.errores = []
-        if self.detalle_contratos_vencidos is None:
-            self.detalle_contratos_vencidos = []
-        if self.detalle_contratos_proximos_vencer is None:
-            self.detalle_contratos_proximos_vencer = []
+    detalle_contratos_vencidos: list[Dict[str, str]] = field(default_factory=list)
+    detalle_contratos_proximos_vencer: list[Dict[str, str]] = field(default_factory=list)
     
     def add_error(self, propiedad: str, error: str):
         """Agrega un error al resumen."""
