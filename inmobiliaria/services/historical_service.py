@@ -84,7 +84,7 @@ class HistoricalService:
         
         # Analizar estado de contratos
         fecha_actual = dt.date.today()
-        self.analyze_contracts_status(fecha_limite, fecha_actual)
+        self.analyze_contracts_status(fecha_limite, fecha_actual, maestro_data)
         
         logging.warning("[INICIO] Reseteando hoja historico...")
         self.data_manager.reset_historical_sheet()
@@ -228,8 +228,7 @@ class HistoricalService:
             "luz": safe_float(data.get("luz")),
             "gas": safe_float(data.get("gas")),
             "expensas": safe_float(data.get("expensas")),
-            "descuento_porcentaje": safe_percentage(data.get("descuento")),
-            "monto_comision": safe_float(data.get("monto_comision"), default=None)
+            "descuento_porcentaje": safe_percentage(data.get("descuento"))
         }
     
     def _determine_starting_point(self, 
@@ -309,7 +308,7 @@ class HistoricalService:
         
         return registros
     
-    def analyze_contracts_status(self, fecha_limite: dt.date, fecha_actual: dt.date):
+    def analyze_contracts_status(self, fecha_limite: dt.date, fecha_actual: dt.date, maestro_data: Optional[List[Dict]] = None):
         """
         Analiza el estado de todos los contratos y actualiza el summary.
         
@@ -320,7 +319,8 @@ class HistoricalService:
         logging.warning("[CONTRATOS] Analizando estado de contratos...")
         
         # Cargar datos del maestro para análisis de contratos
-        maestro_data = self.data_manager.load_maestro_data()
+        if maestro_data is None:
+            maestro_data = self.data_manager.load_maestro_data()
         
         # Fecha límite para contratos próximos a vencer (3 meses desde fecha_actual)
         fecha_limite_proximos = fecha_actual + relativedelta(months=3)

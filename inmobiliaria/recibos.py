@@ -486,7 +486,7 @@ class ReciboGenerator:
                 if membrete_path and os.path.exists(membrete_path):
                     try:
                         # Membrete más pequeño para ahorrar espacio
-                        img = Image(membrete_path, width=6*inch, height=1*inch)  # Reducido de 6 a 4 inch
+                        img = Image(membrete_path, width=5.4*inch, height=0.9*inch)  # Reducido 10%
                         img.hAlign = 'CENTER'
                         story.append(img)
                         story.append(Spacer(1, 4))  # Espaciado reducido
@@ -495,23 +495,45 @@ class ReciboGenerator:
             # Título del talón
             story.append(Paragraph(f"RECIBO DE ALQUILER - TALÓN PARA {destinatario}", self.styles['TituloRecibo']))
             
-            # Información básica en 2 columnas para ahorrar espacio
+            # Información básica en 6 columnas para incluir NIS/GAS/PADRON
             info_data = [
-                ["Dirección:", data.get('dir_inmueble', ''), "Mes:", self.mes_periodo],
-                ["Inquilino:", data.get('inquilino', ''), "Propietario:", data.get('propietario', '')]
+                [
+                    "Dirección:", data.get('dir_inmueble', ''),
+                    "Mes:", self.mes_periodo,
+                    "NIS:", data.get('nis', '')
+                ],
+                [
+                    "Inquilino:", data.get('inquilino', ''),
+                    "Propietario:", data.get('propietario', ''),
+                    "GAS:", data.get('gas_nro', '')
+                ],
+                [
+                    "PADRON:", data.get('padron', ''),
+                    "", "",
+                    "", ""
+                ]
             ]
             
-            info_table = Table(info_data, colWidths=[1.5*inch, 2.5*inch, 1.5*inch, 2.5*inch])
+            info_table = Table(
+                info_data,
+                colWidths=[
+                    0.9*inch, 2.7*inch,
+                    0.8*inch, 1.2*inch,
+                    0.7*inch, 1.0*inch
+                ]
+            )
             info_table.setStyle(TableStyle([
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),  # Centrado en todas las celdas
-                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),  # Primera columna en negrita
-                ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),  # Tercera columna en negrita
-                ('FONTSIZE', (0, 0), (-1, -1), 10),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
+                ('FONTNAME', (4, 0), (4, -1), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+                ('TOPPADDING', (0, 0), (-1, -1), 1),
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),  # Alineación superior
             ]))
             story.append(info_table)
-            story.append(Spacer(1, 6))  # Reducido de 8 a 6
+            story.append(Spacer(1, 4))  # Reducido
             
             # Desglose de pagos (más compacto)
             story.append(Paragraph("DETALLE DEL PAGO", self.styles['Subtitulo']))
@@ -576,13 +598,13 @@ class ReciboGenerator:
                 ('FONTNAME', (0, 0), (0, -1), 'Helvetica'),
                 ('FONTNAME', (0, -1), (0, -1), 'Helvetica-Bold'),
                 ('FONTNAME', (1, -1), (1, -1), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 10),
-                ('FONTSIZE', (0, -1), (-1, -1), 12),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('FONTSIZE', (0, -1), (-1, -1), 11),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
                 ('LINEABOVE', (0, -1), (-1, -1), 1, colors.black),
             ]))
             story.append(desglose_table)
-            story.append(Spacer(1, 6))  # Reducido de 8 a 6
+            story.append(Spacer(1, 4))  # Reducido
             
             # Información de actualización (más compacta en 2 columnas)
             info_actualizacion = []
@@ -612,7 +634,7 @@ class ReciboGenerator:
                     fechas_table = Table(fechas_data, colWidths=[3*inch, 3*inch])
                     fechas_table.setStyle(TableStyle([
                         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                        ('FONTSIZE', (0, 0), (-1, -1), 10),
+                        ('FONTSIZE', (0, 0), (-1, -1), 9),
                         ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
                         ('TOPPADDING', (0, 0), (-1, -1), 2),
                     ]))
@@ -645,8 +667,8 @@ class ReciboGenerator:
                 inmobiliaria_table.setStyle(TableStyle([
                     ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                     ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, -1), 10),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                    ('FONTSIZE', (0, 0), (-1, -1), 9),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
                 ]))
                 story.append(inmobiliaria_table)
             
@@ -661,7 +683,7 @@ class ReciboGenerator:
             firmas_table.setStyle(TableStyle([
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
                 ('TOPPADDING', (0, 0), (-1, -1), 2),
             ]))
@@ -669,7 +691,7 @@ class ReciboGenerator:
             
             # Separador entre talones (excepto después del último)
             if destinatario == "INQUILINO":
-                story.append(Spacer(1, 8))  # Reducido de 10 a 8
+                story.append(Spacer(1, 6))  # Reducido
                 # Línea divisoria
                 line_data = [["─" * 100]]
                 line_table = Table(line_data, colWidths=[7*inch])
@@ -678,7 +700,7 @@ class ReciboGenerator:
                     ('FONTSIZE', (0, 0), (-1, -1), 8),
                 ]))
                 story.append(line_table)
-                story.append(Spacer(1, 12))  # Reducido de 15 a 12
+                story.append(Spacer(1, 8))  # Reducido
         
         return story
 
