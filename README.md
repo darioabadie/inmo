@@ -35,6 +35,11 @@ Instala las dependencias con:
 pip install -r requirements.txt
 ```
 
+Activar el ambiente:
+
+``` sh
+source venv/bin/activate
+```
 **Nota**: La aplicación creará automáticamente un directorio `logs/` para almacenar archivos de registro de errores cuando sea necesario.
 
 ## Autenticación con Google Sheets

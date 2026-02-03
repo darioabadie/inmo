@@ -49,8 +49,7 @@ class MonthlyRecordGenerator:
             precio_descuento,
             context.contrato.comision or "Pagado",
             context.contrato.deposito or "Pagado",
-            context.meses_desde_inicio + 1,  # mes_actual 1-based
-            context.monto_comision  # Monto fijo de comisión (opcional)
+            context.meses_desde_inicio + 1  # mes_actual 1-based
         )
         
         cuotas_adicionales = float(cuotas_detalle['total_cuotas'])

@@ -137,21 +137,11 @@ def main():
             # Calcular otros valores
             comision_alquiler = calcular_comision(contrato.comision_inmo, precio_base)
             
-            # Obtener monto_comision de la fila (opcional)
-            monto_comision = None
-            monto_raw = fila.get("monto_comision")
-            if monto_raw is not None and str(monto_raw).strip():
-                try:
-                    monto_comision = float(monto_raw)
-                except (ValueError, TypeError):
-                    monto_comision = None
-            
             cuotas_detalle = calcular_cuotas_detalladas(
                 precio_base,
                 contrato.comision or "Pagado",
                 contrato.deposito or "Pagado",
-                meses_desde_inicio + 1,  # mes_actual 1-based
-                monto_comision  # Monto fijo de comisión (opcional)
+                meses_desde_inicio + 1  # mes_actual 1-based
             )
             cuotas_adicionales = float(cuotas_detalle['total_cuotas'])
             cuotas_deposito = float(cuotas_detalle['cuotas_deposito'])

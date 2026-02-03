@@ -158,7 +158,6 @@ def calcular_factor_icl_acumulado_detallado(precio_original: float,
 Funciones de cálculo de precios, comisiones y cuotas adicionales.
 """
 import datetime as dt
-from typing import Optional
 
 import pandas as pd
 import requests
@@ -270,18 +269,14 @@ def calcular_comision(comision_str: str, precio_mes: float) -> float:
 def calcular_cuotas_adicionales(precio_base: float, 
                                comision_inquilino: str, 
                                deposito: str, 
-                               mes_actual: int,
-                               monto_comision: Optional[float] = None) -> float:
+                               mes_actual: int) -> float:
     monto_adicional = 0.0
     
-    # Determinar monto base para comisión: monto_comision si existe, sino precio_base
-    base_comision = monto_comision if monto_comision is not None and monto_comision > 0 else precio_base
-    
-    # Comisión sin interés
+    # Comisión con recargo según cuotas
     if comision_inquilino == "2 cuotas" and mes_actual <= 2:
-        monto_adicional += base_comision / 2
+        monto_adicional += (precio_base * 1.15) / 2
     elif comision_inquilino == "3 cuotas" and mes_actual <= 3:
-        monto_adicional += base_comision / 3
+        monto_adicional += (precio_base * 1.20) / 3
     
     # Depósito sin interés
     if deposito == "2 cuotas" and mes_actual <= 2:
@@ -292,14 +287,13 @@ def calcular_cuotas_adicionales(precio_base: float,
     return round(monto_adicional, 2)
 
 
-from typing import Dict, Union, Optional
+from typing import Dict, Union
 
 
 def calcular_cuotas_detalladas(precio_base: float, 
                               comision_inquilino: str, 
                               deposito: str, 
-                              mes_actual: int,
-                              monto_comision: Optional[float] = None) -> Dict[str, Union[float, str]]:
+                              mes_actual: int) -> Dict[str, Union[float, str]]:
     """
     Calcula las cuotas adicionales con detalle separado de comisión y depósito.
     
@@ -308,7 +302,6 @@ def calcular_cuotas_detalladas(precio_base: float,
         comision_inquilino: Configuración de comisión ("Pagado", "2 cuotas", "3 cuotas")
         deposito: Configuración de depósito ("Pagado", "2 cuotas", "3 cuotas")
         mes_actual: Número de mes del contrato
-        monto_comision: Monto fijo de comisión (opcional). Si no se provee, usa precio_base
     
     Returns:
         Dict con 'cuotas_comision', 'cuotas_deposito', 'total_cuotas', 'detalle_descripcion'
@@ -317,15 +310,12 @@ def calcular_cuotas_detalladas(precio_base: float,
     cuotas_deposito = 0.0
     descripciones = []
     
-    # Determinar monto base para comisión: monto_comision si existe, sino precio_base
-    base_comision = monto_comision if monto_comision is not None and monto_comision > 0 else precio_base
-    
-    # Comisión sin interés
+    # Comisión con recargo según cuotas
     if comision_inquilino == "2 cuotas" and mes_actual <= 2:
-        cuotas_comision = base_comision / 2
+        cuotas_comision = (precio_base * 1.15) / 2
         descripciones.append(f"Comisión inmobiliaria ({mes_actual}/2)")
     elif comision_inquilino == "3 cuotas" and mes_actual <= 3:
-        cuotas_comision = base_comision / 3
+        cuotas_comision = (precio_base * 1.20) / 3
         descripciones.append(f"Comisión inmobiliaria ({mes_actual}/3)")
     
     # Depósito sin interés
