@@ -10,3 +10,4 @@ client_secret*
 logs/
 *.log
 /venv
+resumen*.txt
